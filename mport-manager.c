@@ -29,6 +29,7 @@ SUCH DAMAGE.
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <err.h>
 #include <string.h>
 
 #include <mport.h>
@@ -36,8 +37,9 @@ SUCH DAMAGE.
 #define NAME "MidnightBSD Package Manager"
 #define ICONFILE "/usr/local/share/mport/icon.png"
 
-GtkWidget *search, *pass; /* textboxes */
+GtkWidget *search; /* textboxes */
 GtkWidget *tree;
+GtkWidget *installedTree;
 GtkTextBuffer *buffer;
 
 mportInstance *mport;
@@ -51,15 +53,19 @@ static void cut_clicked (GtkButton*, GtkTextView*);
 static void copy_clicked (GtkButton*, GtkTextView*);
 static void paste_clicked (GtkButton*, GtkTextView*);
 void setup_tree(void);
-void populate_tree_model(GtkTreeStore *);
+void create_installed_tree(void);
+void populate_installed_packages(GtkTreeStore *);
+void populate_remote_index(GtkTreeStore *store);
 void gtk_box_pack_start_defaults(GtkBox *, GtkWidget *);
 
 int 
 main( int argc, char *argv[] )
 {
-	GtkWidget *window, *vbox, *authbox, *authbox2, *vauthbox, *hboxccp;
+	GtkWidget *window, *vbox, *authbox, *vauthbox, *hboxccp;
 	GtkWidget *submit, *cut, *copy, *paste; /* buttons */
 	GtkWidget *scrolled_win, *textview = NULL;
+	GtkWidget *stackSwitcher;
+	GtkWidget *stack;
 	GdkPixbuf *icon;
 
 	dispatch_queue_t mainq = dispatch_get_main_queue();
@@ -74,19 +80,22 @@ main( int argc, char *argv[] )
 
 	gtk_init( &argc, &argv );
 
+	// init window
 	window = gtk_window_new( GTK_WINDOW_TOPLEVEL );
 	gtk_window_set_title( GTK_WINDOW (window), NAME );
 	gtk_container_set_border_width( GTK_CONTAINER (window), 10 );
-	gtk_widget_set_size_request( window, 400, 400 );
+	gtk_widget_set_size_request( window, 800, 600 );
 
 	icon = gdk_pixbuf_new_from_file(ICONFILE, NULL);
 	if (icon) {
 		gtk_window_set_icon(GTK_WINDOW(window), icon);
 	}
 
+	// setup destroy signal
 	g_signal_connect (G_OBJECT (window), "destroy",
                   G_CALLBACK (gtk_main_quit), NULL);
 
+	// create cut/copy/paste icons
 	cut = gtk_button_new_from_icon_name("edit-cut", GTK_ICON_SIZE_SMALL_TOOLBAR);
 	copy = gtk_button_new_from_icon_name("edit-copy", GTK_ICON_SIZE_SMALL_TOOLBAR);
 	paste = gtk_button_new_from_icon_name("edit-paste", GTK_ICON_SIZE_SMALL_TOOLBAR);
@@ -97,6 +106,7 @@ main( int argc, char *argv[] )
 	gtk_box_pack_start (GTK_BOX (hboxccp), paste, TRUE, TRUE, 0);
 
 
+	// wire up signals for cut/copy/paste
 	g_signal_connect (G_OBJECT (cut), "clicked",
                     G_CALLBACK (cut_clicked),
                     (gpointer) textview);
@@ -107,13 +117,17 @@ main( int argc, char *argv[] )
                     G_CALLBACK (paste_clicked),
                     (gpointer) textview);
 
+	// create search button
 	submit = gtk_button_new_with_mnemonic("_Search");
 	g_signal_connect (G_OBJECT (submit), "clicked",
                     G_CALLBACK (button_clicked),
                     (gpointer) window);
 
 	setup_tree();
+	create_installed_tree();
 
+	stackSwitcher = gtk_stack_switcher_new();
+	stack = gtk_stack_new();
 
    /* lbluser = gtk_label_new( "Username" );
     lblpass = gtk_label_new( "Password" );
@@ -133,6 +147,8 @@ main( int argc, char *argv[] )
     gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_win),
                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
 */
+
+	 search = gtk_entry_new();
 	/* create username hbox */
 	authbox = gtk_box_new( GTK_ORIENTATION_HORIZONTAL, 5 );
 	gtk_box_pack_start_defaults( GTK_BOX (authbox), search );
@@ -153,8 +169,29 @@ main( int argc, char *argv[] )
 
 
 	gtk_box_pack_start( GTK_BOX (vbox), scrolled_win, TRUE, TRUE, 5 );
-		
-	gtk_container_add( GTK_CONTAINER (window), vbox );
+
+	// Scroll for install packages
+	GtkWidget *scrolled_installed = gtk_scrolled_window_new (NULL, NULL);
+	gtk_container_add (GTK_CONTAINER (scrolled_installed), installedTree);
+	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_installed),
+                                  GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+
+	// add all the stacks
+	gtk_stack_add_titled(GTK_STACK(stack), vbox, "page-1", "Available Software");
+	GtkWidget * lblTest = gtk_label_new( "Test" );
+	gtk_stack_add_titled(GTK_STACK(stack), scrolled_installed, "page-2", "Installed Software");
+	gtk_stack_add_titled(GTK_STACK(stack), lblTest, "page-3", "Updates");
+
+	gtk_stack_set_visible_child(GTK_STACK(stack), vbox);
+	gtk_stack_set_visible_child_name(GTK_STACK(stack), "page-1");
+
+	gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(stackSwitcher), GTK_STACK(stack));
+
+	GtkWidget *stackHolder = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+	gtk_box_pack_start( GTK_BOX (stackHolder), stackSwitcher, FALSE, TRUE, 0 );
+	gtk_box_pack_start( GTK_BOX (stackHolder), stack, TRUE, TRUE, 0 );
+
+	gtk_container_add( GTK_CONTAINER (window), stackHolder);
 	gtk_widget_show_all( window );
 
 	gtk_main();
@@ -182,20 +219,16 @@ gtk_box_pack_start_defaults(GtkBox *box, GtkWidget *widget)  {
 static void 
 button_clicked( GtkButton *button, GtkWindow *parent )
 {
-     const gchar *query, *p; /* username, password */
+    const gchar *query;
     char *c;
     GtkTextIter start, end;
-    char *errmsg = NULL;
 
     query = gtk_entry_get_text( GTK_ENTRY (search) );
-   // p = gtk_entry_get_text( GTK_ENTRY (pass) );
     gtk_text_buffer_get_bounds (buffer, &start, &end);
     c = gtk_text_iter_get_text (&start, &end);
-
    
-    /* if we get here it worked.  Clear the entry data */
+    /* if we get here it worked.  Clear the entry data TODO: do we want this*/
     gtk_entry_set_text( GTK_ENTRY (search), "" );
- //   gtk_entry_set_text( GTK_ENTRY (pass), "" );
     gtk_text_buffer_set_text (buffer, "", -1);
 
 cleanup:
@@ -272,8 +305,15 @@ enum
 	N_COLUMNS
 };
 
+enum
+{
+	INST_TITLE_COLUMN,
+	INST_VERSION_COLUMN,
+	INST_N_COLUMNS
+};
+
 void
-setup_tree (void)
+setup_tree(void)
 {
    GtkTreeStore *store;
    
@@ -285,7 +325,7 @@ setup_tree (void)
                                G_TYPE_STRING,
                                G_TYPE_BOOLEAN);
 
-   populate_tree_model(store);
+   populate_remote_index(store);
 
    tree = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
    /* The view now holds a reference.  We can get rid of our own
@@ -318,21 +358,86 @@ setup_tree (void)
    gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
 }
 
+void
+create_installed_tree(void)
+{
+   GtkTreeStore *store;
+   
+   GtkTreeViewColumn *column;
+   GtkCellRenderer *renderer;
+
+   store = gtk_tree_store_new (INST_N_COLUMNS,
+                               G_TYPE_STRING,
+                               G_TYPE_STRING);
+
+   populate_installed_packages(store);
+
+   installedTree = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
+   /* The view now holds a reference.  We can get rid of our own
+    * reference */
+   g_object_unref (G_OBJECT (store));
+
+   renderer = gtk_cell_renderer_text_new ();
+   column = gtk_tree_view_column_new_with_attributes ("Title",
+                                                      renderer,
+                                                      "text", INST_TITLE_COLUMN,
+                                                      NULL);
+   gtk_tree_view_append_column (GTK_TREE_VIEW (installedTree), column);
+
+   renderer = gtk_cell_renderer_text_new ();
+   g_object_set (G_OBJECT (renderer),
+                 "foreground", "red",
+                 NULL);
+
+   column = gtk_tree_view_column_new_with_attributes ("Version", renderer,
+                                                      "text", INST_VERSION_COLUMN,
+                                                      NULL);
+
+   gtk_tree_view_append_column (GTK_TREE_VIEW (installedTree), column);
+}
+
+
 void 
-populate_tree_model(GtkTreeStore *store) 
+populate_remote_index(GtkTreeStore *store) 
 {
 	GtkTreeIter   iter;
-        mportPackageMeta **packs;
+        mportIndexEntry **packs;
 
-	 /*if (mport_index_load(mport) != MPORT_OK)
-             errx(4, "Unable to load updates index");
-*/
-        if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
+	if (mport_index_load(mport) != MPORT_OK)
+		errx(4, "Unable to load updates index");
+
+        if (mport_index_list(mport, &packs) != MPORT_OK) {
                 warnx("%s", mport_err_string());
                 mport_instance_free(mport);
                 exit(1);
         }
 
+	gtk_tree_store_append (store, &iter, NULL);  /* Acquire an iterator */
+
+	while (*packs != NULL) {
+//		dispatch_sync(q, ^{
+			gtk_tree_store_set (store, &iter,
+        	            TITLE_COLUMN, (*packs)->pkgname,
+        	            VERSION_COLUMN, (*packs)->version,
+        	            INSTALLED_COLUMN, TRUE,
+       		            -1);
+			gtk_tree_store_append (store, &iter, NULL);
+//		});
+		packs++;
+	}
+}
+
+void 
+populate_installed_packages(GtkTreeStore *store) 
+{
+	GtkTreeIter   iter;
+        mportPackageMeta **packs;
+
+        if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
+                warnx("%s", mport_err_string());
+                mport_instance_free(mport);
+                exit(1);
+        }
 
 	gtk_tree_store_append (store, &iter, NULL);  /* Acquire an iterator */
 
@@ -341,7 +446,6 @@ populate_tree_model(GtkTreeStore *store)
 			gtk_tree_store_set (store, &iter,
         	            TITLE_COLUMN, (*packs)->name,
         	            VERSION_COLUMN, (*packs)->version,
-        	            INSTALLED_COLUMN, TRUE,
        		            -1);
 			gtk_tree_store_append (store, &iter, NULL);
 //		});
