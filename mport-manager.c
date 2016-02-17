@@ -36,6 +36,7 @@ SUCH DAMAGE.
 
 #define NAME "MidnightBSD Package Manager"
 #define ICONFILE "/usr/local/share/mport/icon.png"
+#define MPORT_LOCAL_PKG_PATH "/var/db/mport/downloads"
 
 GtkWidget *search; /* textboxes */
 GtkWidget *tree;
@@ -49,6 +50,7 @@ dispatch_group_t grp;
 dispatch_queue_t q;
 
 static void button_clicked (GtkButton *button, GtkWindow *parent);
+static void update_button_clicked (GtkButton *button, GtkWindow *parent);
 static void msgbox(GtkWindow *parent, char * msg);
 static void cut_clicked (GtkButton*, GtkTextView*);
 static void copy_clicked (GtkButton*, GtkTextView*);
@@ -60,6 +62,12 @@ static void populate_installed_packages(GtkTreeStore *);
 static void populate_update_packages(GtkTreeStore *); 
 static void populate_remote_index(GtkTreeStore *store);
 static void gtk_box_pack_start_defaults(GtkBox *, GtkWidget *);
+static void loadIndex(mportInstance *);
+static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
+static int update(mportInstance *, const char *);
+static int upgrade(mportInstance *);
+static int updateDown(mportInstance *, mportPackageMeta *);
+static int indexCheck(mportInstance *, mportPackageMeta *);
 
 int 
 main( int argc, char *argv[] )
@@ -167,11 +175,21 @@ main( int argc, char *argv[] )
 	gtk_container_add (GTK_CONTAINER (scrolled_updates), updateTree);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_updates),
                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+	// create update button
+	GtkWidget *updateButton = gtk_button_new_with_mnemonic("_Upgrade Installed Software");
+	//updateButton = 
+	g_signal_connect (G_OBJECT (updateButton), "clicked",
+                    G_CALLBACK (update_button_clicked),
+                    (gpointer) window);
+	// create update box
+	GtkWidget *updateBox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+	gtk_box_pack_start( GTK_BOX (updateBox), scrolled_updates, TRUE, TRUE, 5 );
+	gtk_box_pack_start( GTK_BOX (updateBox), updateButton, FALSE, TRUE, 5 );
 
 	// add all the stacks
 	gtk_stack_add_titled(GTK_STACK(stack), vbox, "page-1", "Available Software");
 	gtk_stack_add_titled(GTK_STACK(stack), scrolled_installed, "page-2", "Installed Software");
-	gtk_stack_add_titled(GTK_STACK(stack), scrolled_updates, "page-3", "Updates");
+	gtk_stack_add_titled(GTK_STACK(stack), updateBox, "page-3", "Updates");
 
 	gtk_stack_set_visible_child(GTK_STACK(stack), vbox);
 	gtk_stack_set_visible_child_name(GTK_STACK(stack), "page-1");
@@ -207,9 +225,176 @@ gtk_box_pack_start_defaults(GtkBox *box, GtkWidget *widget)  {
 	gtk_box_pack_start(box, widget, TRUE, TRUE, 0);
 }
 
+static void
+update_button_clicked(GtkButton *button, GtkWindow *parent) 
+{
+	dispatch_group_async(grp, q, ^{
+		loadIndex(mport);
+		int resultCode = upgrade(mport);
+		// TODO: handle errors
+	});
+}
+
+void
+loadIndex(mportInstance *mport) {
+	int result = mport_index_load(mport);
+	if (result == MPORT_ERR_WARN)
+		warnx("%s", mport_err_string());
+	else if (result != MPORT_OK)
+		errx(4, "Unable to load index %s", mport_err_string());
+}
+
+int
+indexCheck(mportInstance *mport, mportPackageMeta *pack) {
+	mportIndexEntry **indexEntries;
+	int ret = 0;
+
+	if (mport_index_lookup_pkgname(mport, pack->name, &indexEntries) != MPORT_OK) {
+		fprintf(stderr, "Error Looking up package name %s: %d %s\n", pack->name,  mport_err_code(), mport_err_string());
+		return (0);
+	}
+
+	if (indexEntries != NULL) {
+		while (*indexEntries != NULL) {
+			if ((*indexEntries)->version != NULL && mport_version_cmp(pack->version, (*indexEntries)->version) < 0) {
+				ret = 1;
+				break;
+			}
+			indexEntries++;
+		}
+		mport_index_entry_free_vec(indexEntries);
+	}
+
+	return (ret);
+}
+
+
+int
+upgrade(mportInstance *mport) {
+	mportPackageMeta **packs;
+	int total = 0;
+	int updated = 0;
+
+	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
+		warnx("%s", mport_err_string());
+		return (1);
+	}
+
+	if (packs == NULL) {
+		warnx("No packages installed.\n");
+		return (1);
+	}
+
+	while (*packs != NULL) {
+		if (indexCheck(mport, *packs)) {
+			updated += updateDown(mport, *packs);
+		}
+		packs++;
+		total++;
+	}
+	mport_pkgmeta_vec_free(packs);
+	printf("Packages updated: %d\nTotal: %d\n", updated, total);
+	return (0);
+}
+
+int
+updateDown(mportInstance *mport, mportPackageMeta *pack) {
+	mportPackageMeta **depends;
+	int ret = 0;
+
+	fprintf(stderr, "Entering %s\n", pack->name);
+
+	if (mport_pkgmeta_get_downdepends(mport, pack, &depends) == MPORT_OK) {
+		if (depends == NULL) {
+			if (indexCheck(mport, pack)) {
+				fprintf(stderr, "Updating %s\n", pack->name); 
+				if (update(mport, pack->name) !=0) {
+					fprintf(stderr, "Error updating %s\n", pack->name);
+					ret = 0;
+				} else
+					ret = 1;
+			} else
+				ret = 0;
+		} else {
+			while (*depends != NULL) {
+				ret += updateDown(mport, (*depends));
+				if (indexCheck(mport, *depends)) {
+					fprintf(stderr, "Updating depends %s\n", (*depends)->name);
+					if (update(mport, (*depends)->name) != 0) {
+						fprintf(stderr, "Error updating %s\n", (*depends)->name);
+					} else
+						ret++;
+				}
+				depends++;
+			}
+			if (indexCheck(mport, pack)) {
+				fprintf(stderr, "Updating port called %s\n", pack->name);
+				if (update(mport, pack->name) != 0) {
+					fprintf(stderr, "Error updating %s\n", pack->name);
+				} else
+					ret++;
+			}
+		}
+		mport_pkgmeta_vec_free(depends);
+	}
+
+	return (ret);
+}
+
+int
+update(mportInstance *mport, const char *packageName) {
+	mportIndexEntry **indexEntry;
+	char *path;
+
+	indexEntry = lookupIndex(mport, packageName);
+        if (indexEntry == NULL || *indexEntry == NULL)
+                return (1);
+
+	asprintf(&path, "%s/%s", MPORT_LOCAL_PKG_PATH, (*indexEntry)->bundlefile);
+
+	if (!mport_file_exists(path)) {
+        	if (mport_fetch_bundle(mport, (*indexEntry)->bundlefile) != MPORT_OK) {
+			fprintf(stderr, "%s\n", mport_err_string());
+			free(path);
+			return mport_err_code();
+		}
+	}
+
+	if (!mport_verify_hash(path, (*indexEntry)->hash)) {
+		if (unlink(path) == 0)  /* remove file so we can try again */
+			fprintf(stderr, "Package fails hash verification and was removed. Please try again.\n");
+		else
+			fprintf(stderr, "Package fails hash verification Please delete it manually at %s\n", path);
+		free(path);
+		return (1);
+	}
+
+	if (mport_update_primative(mport, path) != MPORT_OK) {
+		fprintf(stderr, "%s\n", mport_err_string());
+		free(path);
+		return mport_err_code();
+	}
+	free(path);
+	mport_index_entry_free_vec(indexEntry);
+
+	return (0);
+}
+
+mportIndexEntry **
+lookupIndex(mportInstance *mport, const char *packageName) {
+	mportIndexEntry **indexEntries;
+
+	if (mport_index_lookup_pkgname(mport, packageName, &indexEntries) != MPORT_OK) {
+		fprintf(stderr, "Error looking up package name %s: %d %s\n",
+			packageName,  mport_err_code(), mport_err_string());
+		errx(mport_err_code(), "%s", mport_err_string());
+	}
+
+	return (indexEntries);
+}
 
 static void 
-button_clicked( GtkButton *button, GtkWindow *parent )
+button_clicked(GtkButton *button, GtkWindow *parent)
 {
     const gchar *query;
     char *c;
@@ -421,13 +606,13 @@ create_update_tree(void)
 
    
    /* VERSION */
-   column = gtk_tree_view_column_new_with_attributes ("Version", renderer,
+   column = gtk_tree_view_column_new_with_attributes ("Installed Version", renderer,
                                                       "text", UPD_VERSION_COLUMN,
                                                       NULL);
    gtk_tree_view_append_column (GTK_TREE_VIEW (updateTree), column);
 
    /* OS RELEASE */
-   column = gtk_tree_view_column_new_with_attributes ("OS Release", renderer,
+   column = gtk_tree_view_column_new_with_attributes ("OS", renderer,
                                                       "text", UPD_OS_RELEASE_COLUMN,
                                                       NULL);
    gtk_tree_view_append_column (GTK_TREE_VIEW (updateTree), column);
