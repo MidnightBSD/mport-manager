@@ -39,12 +39,18 @@ GtkWidget *search, *pass; /* textboxes */
 GtkWidget *tree;
 GtkTextBuffer *buffer;
 
+ mportInstance *mport;
+
+dispatch_group_t grp;
+ dispatch_queue_t q;
+
 static void button_clicked (GtkButton *button, GtkWindow *parent);
 static void msgbox( GtkWindow *parent, char * msg );
 static void cut_clicked (GtkButton*, GtkTextView*);
 static void copy_clicked (GtkButton*, GtkTextView*);
 static void paste_clicked (GtkButton*, GtkTextView*);
 void setup_tree(void);
+void populate_tree_model(GtkTreeStore *store);
 
 void gtk_box_pack_start_defaults(GtkBox *box, GtkWidget *widget)  {
 	gtk_box_pack_start(box, widget, TRUE, TRUE, 0);
@@ -56,6 +62,22 @@ int main( int argc, char *argv[] )
  //   GtkWidget *lbluser, *lblpass; /* labels */
     GtkWidget *submit, *cut, *copy, *paste; /* buttons */
     GtkWidget *scrolled_win, *textview = NULL;
+
+
+         
+ 
+
+
+	 dispatch_queue_t mainq = dispatch_get_main_queue();
+       grp = dispatch_group_create();
+      q = dispatch_queue_create("print", NULL);
+	  mport = mport_instance_new();
+
+        if (mport_instance_init(mport, NULL) != MPORT_OK) {
+                warnx("%s", mport_err_string());
+                exit(1);
+        }
+
 
     gtk_init( &argc, &argv );
 
@@ -107,13 +129,13 @@ setup_tree();
    
 
     /* setup textview */
-    textview = gtk_text_view_new();
-    buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (textview));
-    scrolled_win = gtk_scrolled_window_new (NULL, NULL);
+   // textview = gtk_text_view_new();
+    //buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (textview));
+   /* scrolled_win = gtk_scrolled_window_new (NULL, NULL);
     gtk_container_add (GTK_CONTAINER (scrolled_win), textview);
     gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_win),
                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-
+*/
     /* create username hbox */
     authbox = gtk_box_new( GTK_ORIENTATION_HORIZONTAL, 5 );
     gtk_box_pack_start_defaults( GTK_BOX (authbox), search );
@@ -127,15 +149,29 @@ setup_tree();
     vbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
     gtk_box_pack_start( GTK_BOX (vbox), hboxccp, FALSE, TRUE, 5 );
     gtk_box_pack_start( GTK_BOX (vbox), vauthbox, FALSE, TRUE, 5 );
-   // gtk_box_pack_start( GTK_BOX (vbox), scrolled_win, TRUE, TRUE, 5 );
+
+ scrolled_win = gtk_scrolled_window_new (NULL, NULL);
+    gtk_container_add (GTK_CONTAINER (scrolled_win), tree);
+    gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_win),
+                                  GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+
+
+   gtk_box_pack_start( GTK_BOX (vbox), scrolled_win, TRUE, TRUE, 5 );
   //  gtk_box_pack_start( GTK_BOX (vbox), submit, FALSE, TRUE, 5 );
-	gtk_box_pack_start( GTK_BOX (vbox), tree, FALSE, TRUE, 5 );
 
 	
     gtk_container_add( GTK_CONTAINER (window), vbox );
     gtk_widget_show_all( window );
 
     gtk_main();
+
+	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
+	dispatch_async(mainq, ^{	
+		mport_instance_free(mport); 
+		exit(0);
+	});
+
+	dispatch_main();
     return 0;
 }
 
@@ -225,8 +261,8 @@ paste_clicked (GtkButton *paste,
 enum
 {
    TITLE_COLUMN,
-   AUTHOR_COLUMN,
-   CHECKED_COLUMN,
+   VERSION_COLUMN,
+   INSTALLED_COLUMN,
    N_COLUMNS
 };
 
@@ -246,7 +282,7 @@ setup_tree (void)
                                G_TYPE_BOOLEAN);
 
    /* custom function to fill the model with data */
-   //populate_tree_model (store);
+   populate_tree_model(store);
 
    /* Create a view */
    tree = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
@@ -254,6 +290,15 @@ setup_tree (void)
    /* The view now holds a reference.  We can get rid of our own
     * reference */
    g_object_unref (G_OBJECT (store));
+
+
+   /* Second column.. title of the book. */
+   renderer = gtk_cell_renderer_text_new ();
+   column = gtk_tree_view_column_new_with_attributes ("Title",
+                                                      renderer,
+                                                      "text", TITLE_COLUMN,
+                                                      NULL);
+   gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
 
    /* Create a cell render and arbitrarily make it red for demonstration
     * purposes */
@@ -264,26 +309,20 @@ setup_tree (void)
 
    /* Create a column, associating the "text" attribute of the
     * cell_renderer to the first column of the model */
-   column = gtk_tree_view_column_new_with_attributes ("Author", renderer,
-                                                      "text", AUTHOR_COLUMN,
+   column = gtk_tree_view_column_new_with_attributes ("Version", renderer,
+                                                      "text", VERSION_COLUMN,
                                                       NULL);
 
    /* Add the column to the view. */
    gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
 
-   /* Second column.. title of the book. */
-   renderer = gtk_cell_renderer_text_new ();
-   column = gtk_tree_view_column_new_with_attributes ("Title",
-                                                      renderer,
-                                                      "text", TITLE_COLUMN,
-                                                      NULL);
-   gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
+
 
    /* Last column.. whether a book is checked out. */
    renderer = gtk_cell_renderer_toggle_new ();
-   column = gtk_tree_view_column_new_with_attributes ("Checked out",
+   column = gtk_tree_view_column_new_with_attributes ("Installed",
                                                       renderer,
-                                                      "active", CHECKED_COLUMN,
+                                                      "active", INSTALLED_COLUMN,
                                                       NULL);
    gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
 
@@ -291,3 +330,31 @@ setup_tree (void)
 
 }
 
+void populate_tree_model(GtkTreeStore *store) {
+GtkTreeIter   iter;
+        mportPackageMeta **packs;
+
+	 /*if (mport_index_load(mport) != MPORT_OK)
+             errx(4, "Unable to load updates index");
+*/
+        if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
+                warnx("%s", mport_err_string());
+                mport_instance_free(mport);
+                exit(1);
+        }
+
+
+	gtk_tree_store_append (store, &iter, NULL);  /* Acquire an iterator */
+
+	while (*packs != NULL) {
+//		dispatch_sync(q, ^{
+			gtk_tree_store_set (store, &iter,
+        	            TITLE_COLUMN, (*packs)->name,
+        	            VERSION_COLUMN, (*packs)->version,
+        	            INSTALLED_COLUMN, TRUE,
+       		            -1);
+			gtk_tree_store_append (store, &iter, NULL);
+//		});
+		packs++;
+	}
+}
