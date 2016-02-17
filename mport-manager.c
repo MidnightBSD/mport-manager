@@ -24,6 +24,7 @@ SUCH DAMAGE.
 */
 
 #include <gtk/gtk.h>
+#include <gdk/gdk.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +34,7 @@ SUCH DAMAGE.
 #include <mport.h>
 
 #define NAME "MidnightBSD Package Manager"
+#define ICONFILE "/usr/local/share/mport/icon.png"
 
 GtkWidget *search, *pass; /* textboxes */
 GtkWidget *tree;
@@ -58,6 +60,7 @@ main( int argc, char *argv[] )
 	GtkWidget *window, *vbox, *authbox, *authbox2, *vauthbox, *hboxccp;
 	GtkWidget *submit, *cut, *copy, *paste; /* buttons */
 	GtkWidget *scrolled_win, *textview = NULL;
+	GdkPixbuf *icon;
 
 	dispatch_queue_t mainq = dispatch_get_main_queue();
 	grp = dispatch_group_create();
@@ -75,6 +78,11 @@ main( int argc, char *argv[] )
 	gtk_window_set_title( GTK_WINDOW (window), NAME );
 	gtk_container_set_border_width( GTK_CONTAINER (window), 10 );
 	gtk_widget_set_size_request( window, 400, 400 );
+
+	icon = gdk_pixbuf_new_from_file(ICONFILE, NULL);
+	if (icon) {
+		gtk_window_set_icon(GTK_WINDOW(window), icon);
+	}
 
 	g_signal_connect (G_OBJECT (window), "destroy",
                   G_CALLBACK (gtk_main_quit), NULL);
