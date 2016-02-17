@@ -1,4 +1,3 @@
-/* $Id: gtkjj.c,v 1.4 2008/09/27 02:06:02 laffer1 Exp $ */
 /*-
 Copyright (C) 2008, 2016 Lucas Holt. All rights reserved.
 
@@ -39,7 +38,7 @@ GtkWidget *search, *pass; /* textboxes */
 GtkWidget *tree;
 GtkTextBuffer *buffer;
 
- mportInstance *mport;
+mportInstance *mport;
 
 dispatch_group_t grp;
  dispatch_queue_t q;
@@ -50,71 +49,62 @@ static void cut_clicked (GtkButton*, GtkTextView*);
 static void copy_clicked (GtkButton*, GtkTextView*);
 static void paste_clicked (GtkButton*, GtkTextView*);
 void setup_tree(void);
-void populate_tree_model(GtkTreeStore *store);
+void populate_tree_model(GtkTreeStore *);
+void gtk_box_pack_start_defaults(GtkBox *, GtkWidget *);
 
-void gtk_box_pack_start_defaults(GtkBox *box, GtkWidget *widget)  {
-	gtk_box_pack_start(box, widget, TRUE, TRUE, 0);
-}
-
-int main( int argc, char *argv[] )
+int 
+main( int argc, char *argv[] )
 {
-    GtkWidget *window, *vbox, *authbox, *authbox2, *vauthbox, *hboxccp;
- //   GtkWidget *lbluser, *lblpass; /* labels */
-    GtkWidget *submit, *cut, *copy, *paste; /* buttons */
-    GtkWidget *scrolled_win, *textview = NULL;
+	GtkWidget *window, *vbox, *authbox, *authbox2, *vauthbox, *hboxccp;
+	GtkWidget *submit, *cut, *copy, *paste; /* buttons */
+	GtkWidget *scrolled_win, *textview = NULL;
 
-
-         
- 
-
-
-	 dispatch_queue_t mainq = dispatch_get_main_queue();
-       grp = dispatch_group_create();
-      q = dispatch_queue_create("print", NULL);
-	  mport = mport_instance_new();
+	dispatch_queue_t mainq = dispatch_get_main_queue();
+	grp = dispatch_group_create();
+	q = dispatch_queue_create("print", NULL);
+	mport = mport_instance_new();
 
         if (mport_instance_init(mport, NULL) != MPORT_OK) {
                 warnx("%s", mport_err_string());
                 exit(1);
         }
 
+	gtk_init( &argc, &argv );
 
-    gtk_init( &argc, &argv );
+	window = gtk_window_new( GTK_WINDOW_TOPLEVEL );
+	gtk_window_set_title( GTK_WINDOW (window), NAME );
+	gtk_container_set_border_width( GTK_CONTAINER (window), 10 );
+	gtk_widget_set_size_request( window, 400, 400 );
 
-    window = gtk_window_new( GTK_WINDOW_TOPLEVEL );
-    gtk_window_set_title( GTK_WINDOW (window), NAME );
-    gtk_container_set_border_width( GTK_CONTAINER (window), 10 );
-    gtk_widget_set_size_request( window, 400, 400 );
-
-    g_signal_connect (G_OBJECT (window), "destroy",
+	g_signal_connect (G_OBJECT (window), "destroy",
                   G_CALLBACK (gtk_main_quit), NULL);
 
-    cut = gtk_button_new_from_icon_name("edit-cut", GTK_ICON_SIZE_SMALL_TOOLBAR);
-    copy = gtk_button_new_from_icon_name("edit-copy", GTK_ICON_SIZE_SMALL_TOOLBAR);
-    paste = gtk_button_new_from_icon_name("edit-paste", GTK_ICON_SIZE_SMALL_TOOLBAR);
+	cut = gtk_button_new_from_icon_name("edit-cut", GTK_ICON_SIZE_SMALL_TOOLBAR);
+	copy = gtk_button_new_from_icon_name("edit-copy", GTK_ICON_SIZE_SMALL_TOOLBAR);
+	paste = gtk_button_new_from_icon_name("edit-paste", GTK_ICON_SIZE_SMALL_TOOLBAR);
 
-    hboxccp = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start (GTK_BOX (hboxccp), cut, TRUE, TRUE, 0);
-    gtk_box_pack_start (GTK_BOX (hboxccp), copy, TRUE, TRUE, 0);
-    gtk_box_pack_start (GTK_BOX (hboxccp), paste, TRUE, TRUE, 0);
+	hboxccp = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 5);
+	gtk_box_pack_start (GTK_BOX (hboxccp), cut, TRUE, TRUE, 0);
+	gtk_box_pack_start (GTK_BOX (hboxccp), copy, TRUE, TRUE, 0);
+	gtk_box_pack_start (GTK_BOX (hboxccp), paste, TRUE, TRUE, 0);
 
 
-    g_signal_connect (G_OBJECT (cut), "clicked",
+	g_signal_connect (G_OBJECT (cut), "clicked",
                     G_CALLBACK (cut_clicked),
                     (gpointer) textview);
-    g_signal_connect (G_OBJECT (copy), "clicked",
+	g_signal_connect (G_OBJECT (copy), "clicked",
                     G_CALLBACK (copy_clicked),
                     (gpointer) textview);
-    g_signal_connect (G_OBJECT (paste), "clicked",
+	g_signal_connect (G_OBJECT (paste), "clicked",
                     G_CALLBACK (paste_clicked),
                     (gpointer) textview);
 
-    submit = gtk_button_new_with_mnemonic("_Search");
-    g_signal_connect (G_OBJECT (submit), "clicked",
+	submit = gtk_button_new_with_mnemonic("_Search");
+	g_signal_connect (G_OBJECT (submit), "clicked",
                     G_CALLBACK (button_clicked),
                     (gpointer) window);
 
-setup_tree();
+	setup_tree();
 
 
    /* lbluser = gtk_label_new( "Username" );
@@ -127,7 +117,6 @@ setup_tree();
 
 	 search = gtk_entry_new();
    
-
     /* setup textview */
    // textview = gtk_text_view_new();
     //buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (textview));
@@ -136,34 +125,31 @@ setup_tree();
     gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_win),
                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
 */
-    /* create username hbox */
-    authbox = gtk_box_new( GTK_ORIENTATION_HORIZONTAL, 5 );
-    gtk_box_pack_start_defaults( GTK_BOX (authbox), search );
-    gtk_box_pack_start( GTK_BOX (authbox), submit, FALSE, TRUE, 5 );
+	/* create username hbox */
+	authbox = gtk_box_new( GTK_ORIENTATION_HORIZONTAL, 5 );
+	gtk_box_pack_start_defaults( GTK_BOX (authbox), search );
+	gtk_box_pack_start( GTK_BOX (authbox), submit, FALSE, TRUE, 5 );
 
+	vauthbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+	gtk_box_pack_start_defaults( GTK_BOX (vauthbox), authbox );
 
-    vauthbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
-    gtk_box_pack_start_defaults( GTK_BOX (vauthbox), authbox );
+	/* Setup the final box for layout in the window */
+	vbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+	gtk_box_pack_start( GTK_BOX (vbox), hboxccp, FALSE, TRUE, 5 );
+	gtk_box_pack_start( GTK_BOX (vbox), vauthbox, FALSE, TRUE, 5 );
 
-    /* Setup the final box for layout in the window */
-    vbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
-    gtk_box_pack_start( GTK_BOX (vbox), hboxccp, FALSE, TRUE, 5 );
-    gtk_box_pack_start( GTK_BOX (vbox), vauthbox, FALSE, TRUE, 5 );
-
- scrolled_win = gtk_scrolled_window_new (NULL, NULL);
-    gtk_container_add (GTK_CONTAINER (scrolled_win), tree);
-    gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_win),
+ 	scrolled_win = gtk_scrolled_window_new (NULL, NULL);
+	gtk_container_add (GTK_CONTAINER (scrolled_win), tree);
+	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_win),
                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
 
 
-   gtk_box_pack_start( GTK_BOX (vbox), scrolled_win, TRUE, TRUE, 5 );
-  //  gtk_box_pack_start( GTK_BOX (vbox), submit, FALSE, TRUE, 5 );
+	gtk_box_pack_start( GTK_BOX (vbox), scrolled_win, TRUE, TRUE, 5 );
+		
+	gtk_container_add( GTK_CONTAINER (window), vbox );
+	gtk_widget_show_all( window );
 
-	
-    gtk_container_add( GTK_CONTAINER (window), vbox );
-    gtk_widget_show_all( window );
-
-    gtk_main();
+	gtk_main();
 
 	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
 	dispatch_async(mainq, ^{	
@@ -172,10 +158,21 @@ setup_tree();
 	});
 
 	dispatch_main();
-    return 0;
+
+	return 0;
 }
 
-static void button_clicked( GtkButton *button, GtkWindow *parent )
+/*
+ * Compatibility method for gtk2 to gtk3 conversion
+ */
+void 
+gtk_box_pack_start_defaults(GtkBox *box, GtkWidget *widget)  {
+	gtk_box_pack_start(box, widget, TRUE, TRUE, 0);
+}
+
+
+static void 
+button_clicked( GtkButton *button, GtkWindow *parent )
 {
      const gchar *query, *p; /* username, password */
     char *c;
@@ -197,7 +194,8 @@ cleanup:
     g_free(c);
 }
 
-static void msgbox( GtkWindow * parent, char * msg )
+static void 
+msgbox( GtkWindow * parent, char * msg )
 {
     GtkWidget *dialog, *label, *image, *hbox;
 
@@ -260,10 +258,10 @@ paste_clicked (GtkButton *paste,
 
 enum
 {
-   TITLE_COLUMN,
-   VERSION_COLUMN,
-   INSTALLED_COLUMN,
-   N_COLUMNS
+	TITLE_COLUMN,
+	VERSION_COLUMN,
+	INSTALLED_COLUMN,
+	N_COLUMNS
 };
 
 void
@@ -274,25 +272,18 @@ setup_tree (void)
    GtkTreeViewColumn *column;
    GtkCellRenderer *renderer;
 
-   /* Create a model.  We are using the store model for now, though we
-    * could use any other GtkTreeModel */
    store = gtk_tree_store_new (N_COLUMNS,
                                G_TYPE_STRING,
                                G_TYPE_STRING,
                                G_TYPE_BOOLEAN);
 
-   /* custom function to fill the model with data */
    populate_tree_model(store);
 
-   /* Create a view */
    tree = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
-
    /* The view now holds a reference.  We can get rid of our own
     * reference */
    g_object_unref (G_OBJECT (store));
 
-
-   /* Second column.. title of the book. */
    renderer = gtk_cell_renderer_text_new ();
    column = gtk_tree_view_column_new_with_attributes ("Title",
                                                       renderer,
@@ -300,38 +291,29 @@ setup_tree (void)
                                                       NULL);
    gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
 
-   /* Create a cell render and arbitrarily make it red for demonstration
-    * purposes */
    renderer = gtk_cell_renderer_text_new ();
    g_object_set (G_OBJECT (renderer),
                  "foreground", "red",
                  NULL);
 
-   /* Create a column, associating the "text" attribute of the
-    * cell_renderer to the first column of the model */
    column = gtk_tree_view_column_new_with_attributes ("Version", renderer,
                                                       "text", VERSION_COLUMN,
                                                       NULL);
 
-   /* Add the column to the view. */
    gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
 
-
-
-   /* Last column.. whether a book is checked out. */
    renderer = gtk_cell_renderer_toggle_new ();
    column = gtk_tree_view_column_new_with_attributes ("Installed",
                                                       renderer,
                                                       "active", INSTALLED_COLUMN,
                                                       NULL);
    gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
-
-   /* Now we can manipulate the view just like any other GTK widget */
-
 }
 
-void populate_tree_model(GtkTreeStore *store) {
-GtkTreeIter   iter;
+void 
+populate_tree_model(GtkTreeStore *store) 
+{
+	GtkTreeIter   iter;
         mportPackageMeta **packs;
 
 	 /*if (mport_index_load(mport) != MPORT_OK)
