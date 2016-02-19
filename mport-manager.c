@@ -61,7 +61,7 @@ static void create_update_tree(void);
 static void populate_installed_packages(GtkTreeStore *);
 static void populate_update_packages(GtkTreeStore *); 
 static void populate_remote_index(GtkTreeStore *store);
-static void search_remote_index(GtkTreeStore *store, gchar *query);
+static void search_remote_index(GtkTreeStore *store, const char *query);
 static void gtk_box_pack_start_defaults(GtkBox *, GtkWidget *);
 static void loadIndex(mportInstance *);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
@@ -417,29 +417,14 @@ lookupIndex(mportInstance *mport, const char *packageName) {
 static void 
 button_clicked(GtkButton *button, GtkWindow *parent)
 {
-    const gchar *query;
-    char *c;
-    GtkTextIter start, end;
+	const gchar *query;
 
-puts("foo");
-
-    query = gtk_entry_get_text( GTK_ENTRY (search) );
-    /*gtk_text_buffer_get_bounds (buffer, &start, &end);
-    c = gtk_text_iter_get_text (&start, &end); */
-   
+	query = gtk_entry_get_text( GTK_ENTRY (search) );  
 	GtkTreeModel * model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree));
 	if (model != NULL) {
-puts("before clear");
 		gtk_tree_store_clear(GTK_TREE_STORE(model));
-		// TODO:
 		search_remote_index(GTK_TREE_STORE(model), query);
 	}
-puts("after");
-    /* if we get here it worked.  Clear the entry data TODO: do we want this*/
-  /*  gtk_entry_set_text( GTK_ENTRY (search), "" );
-    gtk_text_buffer_set_text (buffer, "", -1);
-
-    g_free(c); */
 }
 
 static void 
@@ -653,7 +638,7 @@ create_update_tree(void)
 
 
 static void 
-search_remote_index(GtkTreeStore *store, char *query) 
+search_remote_index(GtkTreeStore *store, const char *query) 
 {
         mportIndexEntry **packs;
 
