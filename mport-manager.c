@@ -52,9 +52,9 @@ dispatch_queue_t q;
 static void button_clicked (GtkButton *button, GtkWindow *parent);
 static void update_button_clicked (GtkButton *button, GtkWindow *parent);
 static void msgbox(GtkWindow *parent, char * msg);
-static void cut_clicked (GtkButton*, GtkTextView*);
-static void copy_clicked (GtkButton*, GtkTextView*);
-static void paste_clicked (GtkButton*, GtkTextView*);
+static void cut_clicked (GtkButton *, GtkEntry *);
+static void copy_clicked (GtkButton *, GtkEntry *);
+static void paste_clicked (GtkButton *, GtkEntry *);
 static void setup_tree(void);
 static void create_installed_tree(void);
 static void create_update_tree(void);
@@ -68,13 +68,14 @@ static int update(mportInstance *, const char *);
 static int upgrade(mportInstance *);
 static int updateDown(mportInstance *, mportPackageMeta *);
 static int indexCheck(mportInstance *, mportPackageMeta *);
+static void create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search);
 
 int 
 main( int argc, char *argv[] )
 {
-	GtkWidget *window, *vbox, *authbox, *vauthbox, *hboxccp;
-	GtkWidget *submit, *cut, *copy, *paste; /* buttons */
-	GtkWidget *scrolled_win, *textview = NULL;
+	GtkWidget *window, *vbox, *authbox, *vauthbox;
+	GtkWidget *submit;
+	GtkWidget *scrolled_win;
 	GtkWidget *stackSwitcher;
 	GtkWidget *stack;
 	GdkPixbuf *icon;
@@ -106,28 +107,6 @@ main( int argc, char *argv[] )
 	g_signal_connect (G_OBJECT (window), "destroy",
                   G_CALLBACK (gtk_main_quit), NULL);
 
-	// create cut/copy/paste icons
-	cut = gtk_button_new_from_icon_name("edit-cut", GTK_ICON_SIZE_SMALL_TOOLBAR);
-	copy = gtk_button_new_from_icon_name("edit-copy", GTK_ICON_SIZE_SMALL_TOOLBAR);
-	paste = gtk_button_new_from_icon_name("edit-paste", GTK_ICON_SIZE_SMALL_TOOLBAR);
-
-	hboxccp = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 5);
-	gtk_box_pack_start (GTK_BOX (hboxccp), cut, TRUE, TRUE, 0);
-	gtk_box_pack_start (GTK_BOX (hboxccp), copy, TRUE, TRUE, 0);
-	gtk_box_pack_start (GTK_BOX (hboxccp), paste, TRUE, TRUE, 0);
-
-
-	// wire up signals for cut/copy/paste
-	g_signal_connect (G_OBJECT (cut), "clicked",
-                    G_CALLBACK (cut_clicked),
-                    (gpointer) textview);
-	g_signal_connect (G_OBJECT (copy), "clicked",
-                    G_CALLBACK (copy_clicked),
-                    (gpointer) textview);
-	g_signal_connect (G_OBJECT (paste), "clicked",
-                    G_CALLBACK (paste_clicked),
-                    (gpointer) textview);
-
 	// create search button
 	submit = gtk_button_new_with_mnemonic("_Search");
 	g_signal_connect (G_OBJECT (submit), "clicked",
@@ -143,7 +122,6 @@ main( int argc, char *argv[] )
 
 	search = gtk_entry_new();
 
-	/* create username hbox */
 	authbox = gtk_box_new( GTK_ORIENTATION_HORIZONTAL, 5 );
 	gtk_box_pack_start_defaults( GTK_BOX (authbox), search );
 	gtk_box_pack_start( GTK_BOX (authbox), submit, FALSE, TRUE, 5 );
@@ -153,7 +131,6 @@ main( int argc, char *argv[] )
 
 	/* Setup the final box for layout in the window */
 	vbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
-	gtk_box_pack_start( GTK_BOX (vbox), hboxccp, FALSE, TRUE, 5 );
 	gtk_box_pack_start( GTK_BOX (vbox), vauthbox, FALSE, TRUE, 5 );
 
  	scrolled_win = gtk_scrolled_window_new (NULL, NULL);
@@ -197,6 +174,7 @@ main( int argc, char *argv[] )
 	gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(stackSwitcher), GTK_STACK(stack));
 
 	GtkWidget *stackHolder = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+	create_menus(window, stackHolder, search);
 	gtk_box_pack_start( GTK_BOX (stackHolder), stackSwitcher, FALSE, TRUE, 0 );
 	gtk_box_pack_start( GTK_BOX (stackHolder), stack, TRUE, TRUE, 0 );
 
@@ -215,6 +193,48 @@ main( int argc, char *argv[] )
 	dispatch_main();
 
 	return 0;
+}
+
+static void
+create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search) {
+	GtkWidget *menuBar = gtk_menu_bar_new();
+
+	// File Menu
+	GtkWidget *menuItem1 = gtk_menu_item_new_with_mnemonic ("_File");
+	GtkWidget *submenu1 = gtk_menu_new();
+	GtkWidget *item_quit = gtk_menu_item_new_with_label("Quit");
+	g_signal_connect_swapped(item_quit, "activate", G_CALLBACK (gtk_widget_destroy), G_OBJECT(window));
+	gtk_menu_shell_append (GTK_MENU_SHELL (submenu1), item_quit);
+	gtk_menu_item_set_submenu (GTK_MENU_ITEM (menuItem1), submenu1);
+	gtk_menu_shell_append (GTK_MENU_SHELL (menuBar), menuItem1);
+
+	// Edit Menu
+	GtkWidget *menuItem2 = gtk_menu_item_new_with_mnemonic ("_Edit");
+	GtkWidget *submenu2 = gtk_menu_new();
+	GtkWidget *cut = gtk_menu_item_new_with_label("Cut");
+	GtkWidget *copy = gtk_menu_item_new_with_label("Copy");
+	GtkWidget *paste = gtk_menu_item_new_with_label("Paste");
+
+	g_signal_connect (G_OBJECT (cut), "activate",
+                    G_CALLBACK (cut_clicked),
+                    (gpointer) search);
+	g_signal_connect (G_OBJECT (copy), "activate",
+                    G_CALLBACK (copy_clicked),
+                    (gpointer) search);
+	g_signal_connect (G_OBJECT (paste), "activate",
+                    G_CALLBACK (paste_clicked),
+                    (gpointer) search);
+
+	gtk_menu_shell_append (GTK_MENU_SHELL (submenu2), cut);
+	gtk_menu_shell_append (GTK_MENU_SHELL (submenu2), copy);
+	gtk_menu_shell_append (GTK_MENU_SHELL (submenu2), paste);
+	gtk_menu_item_set_submenu (GTK_MENU_ITEM (menuItem2), submenu2);
+	gtk_menu_shell_append (GTK_MENU_SHELL (menuBar), menuItem2);
+
+	
+
+	// connect menubar to parent
+        gtk_container_add (GTK_CONTAINER (parent), menuBar);
 }
 
 /*
@@ -441,31 +461,23 @@ msgbox( GtkWindow * parent, char * msg )
 
 /* Copy the selected text to the clipboard and remove it from the buffer. */
 static void
-cut_clicked(GtkButton *cut, GtkTextView *textview)
+cut_clicked(GtkButton *cut, GtkEntry *textview)
 {
-    GtkClipboard *clipboard = gtk_clipboard_get (GDK_SELECTION_CLIPBOARD);
-    //GtkTextBuffer *buffer2 = gtk_text_view_get_buffer (textview);
-
-    gtk_text_buffer_cut_clipboard (buffer, clipboard, TRUE);
+	gtk_editable_cut_clipboard(GTK_EDITABLE(textview));
 }
 
 /* Copy the selected text to the clipboard. */
 static void
-copy_clicked(GtkButton *copy, GtkTextView *textview)
+copy_clicked(GtkButton *copy, GtkEntry *textview)
 {
-    GtkClipboard *clipboard = gtk_clipboard_get (GDK_SELECTION_CLIPBOARD);
-
-    gtk_text_buffer_copy_clipboard (buffer, clipboard);
+	gtk_editable_copy_clipboard(GTK_EDITABLE(textview));
 }
 
 /* Insert the text from the clipboard into the text buffer. */
 static void
-paste_clicked(GtkButton *paste, GtkTextView *textview)
+paste_clicked(GtkButton *paste, GtkEntry *textview)
 {
-    GtkClipboard *clipboard = gtk_clipboard_get (GDK_SELECTION_CLIPBOARD);
-    //GtkTextBuffer *buffer2 = gtk_text_view_get_buffer (textview);
-
-    gtk_text_buffer_paste_clipboard (buffer, clipboard, NULL, TRUE);
+	gtk_editable_paste_clipboard(GTK_EDITABLE(textview));
 }
 
 enum
