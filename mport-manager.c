@@ -61,6 +61,7 @@ static void create_update_tree(void);
 static void populate_installed_packages(GtkTreeStore *);
 static void populate_update_packages(GtkTreeStore *); 
 static void populate_remote_index(GtkTreeStore *store);
+static void search_remote_index(GtkTreeStore *store, gchar *query);
 static void gtk_box_pack_start_defaults(GtkBox *, GtkWidget *);
 static void loadIndex(mportInstance *);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
@@ -420,15 +421,25 @@ button_clicked(GtkButton *button, GtkWindow *parent)
     char *c;
     GtkTextIter start, end;
 
+puts("foo");
+
     query = gtk_entry_get_text( GTK_ENTRY (search) );
-    gtk_text_buffer_get_bounds (buffer, &start, &end);
-    c = gtk_text_iter_get_text (&start, &end);
+    /*gtk_text_buffer_get_bounds (buffer, &start, &end);
+    c = gtk_text_iter_get_text (&start, &end); */
    
+	GtkTreeModel * model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree));
+	if (model != NULL) {
+puts("before clear");
+		gtk_tree_store_clear(GTK_TREE_STORE(model));
+		// TODO:
+		search_remote_index(GTK_TREE_STORE(model), query);
+	}
+puts("after");
     /* if we get here it worked.  Clear the entry data TODO: do we want this*/
-    gtk_entry_set_text( GTK_ENTRY (search), "" );
+  /*  gtk_entry_set_text( GTK_ENTRY (search), "" );
     gtk_text_buffer_set_text (buffer, "", -1);
 
-    g_free(c);
+    g_free(c); */
 }
 
 static void 
@@ -640,6 +651,43 @@ create_update_tree(void)
    gtk_tree_view_append_column (GTK_TREE_VIEW (updateTree), column);
 }
 
+
+static void 
+search_remote_index(GtkTreeStore *store, char *query) 
+{
+        mportIndexEntry **packs;
+
+	if (query == NULL || query[0] == '\0') {
+		populate_remote_index(store);
+		return;
+	}
+
+	if (mport_index_load(mport) != MPORT_OK)
+		errx(4, "Unable to load updates index");
+
+        if (mport_index_search(mport, &packs, "pkg glob %Q or comment glob %Q", query, query) != MPORT_OK) {
+                warnx("%s", mport_err_string());
+                mport_instance_free(mport);
+                exit(1);
+        }
+
+	while (*packs != NULL) {
+	//	dispatch_group_async(grp, q, ^{
+
+			GtkTreeIter   iter;
+			gtk_tree_store_append(store, &iter, NULL);
+			gtk_tree_store_set(store, &iter,
+        	            TITLE_COLUMN, (*packs)->pkgname,
+        	            VERSION_COLUMN, (*packs)->version,
+        	            INSTALLED_COLUMN, TRUE,
+       		            -1);
+		
+	//	});
+		packs++;
+	}
+
+//	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
+}
 
 static void 
 populate_remote_index(GtkTreeStore *store) 
