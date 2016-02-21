@@ -32,6 +32,7 @@ SUCH DAMAGE.
 #include <err.h>
 #include <string.h>
 
+#include <dispatch/dispatch.h>
 #include <mport.h>
 
 #define NAME "MidnightBSD Package Manager"
@@ -42,7 +43,6 @@ GtkWidget *search; /* textboxes */
 GtkWidget *tree;
 GtkWidget *installedTree;
 GtkWidget *updateTree;
-GtkTextBuffer *buffer;
 
 mportInstance *mport;
 
@@ -86,10 +86,10 @@ main( int argc, char *argv[] )
 	q = dispatch_queue_create("print", NULL);
 	mport = mport_instance_new();
 
-        if (mport_instance_init(mport, NULL) != MPORT_OK) {
-                warnx("%s", mport_err_string());
-                exit(1);
-        }
+	if (mport_instance_init(mport, NULL) != MPORT_OK) {
+		warnx("%s", mport_err_string());
+		exit(1);
+	}
 
 	gtk_init( &argc, &argv );
 
@@ -182,8 +182,6 @@ main( int argc, char *argv[] )
 	gtk_container_add( GTK_CONTAINER (window), stackHolder);
 	gtk_widget_show_all( window );
 
-//	gtk_main();
-
 	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
 	dispatch_async(mainq, ^{	
 		gtk_main();
@@ -192,8 +190,6 @@ main( int argc, char *argv[] )
 	});
 
 	dispatch_main();
-
-	return 0;
 }
 
 static void
@@ -235,7 +231,7 @@ create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search) {
 	
 
 	// connect menubar to parent
-        gtk_container_add (GTK_CONTAINER (parent), menuBar);
+	gtk_container_add (GTK_CONTAINER (parent), menuBar);
 }
 
 /*
@@ -368,8 +364,8 @@ update(mportInstance *mport, const char *packageName) {
 	char *path;
 
 	indexEntry = lookupIndex(mport, packageName);
-        if (indexEntry == NULL || *indexEntry == NULL)
-                return (1);
+	if (indexEntry == NULL || *indexEntry == NULL)
+		return (1);
 
 	asprintf(&path, "%s/%s", MPORT_LOCAL_PKG_PATH, (*indexEntry)->bundlefile);
 
@@ -420,6 +416,7 @@ button_clicked(GtkButton *button, GtkWindow *parent)
 	const gchar *query;
 
 	query = gtk_entry_get_text( GTK_ENTRY (search) );  
+
 	GtkTreeModel * model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree));
 	if (model != NULL) {
 		gtk_tree_store_clear(GTK_TREE_STORE(model));
@@ -435,7 +432,7 @@ msgbox( GtkWindow * parent, char * msg )
     /* Create a non-modal dialog with one OK button. */
     dialog = gtk_dialog_new_with_buttons ("Information", parent,
                                         GTK_DIALOG_DESTROY_WITH_PARENT,
-					   ("_OK"),
+					  					 ("_OK"),
                                       	GTK_RESPONSE_ACCEPT,
                                       	NULL);
 
@@ -737,11 +734,11 @@ populate_update_packages(GtkTreeStore *store)
 {
 	mportPackageMeta **packs;
 	
-        if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
-                warnx("%s", mport_err_string());
-                mport_instance_free(mport);
-                exit(1);
-        }
+	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
+		warnx("%s", mport_err_string());
+		mport_instance_free(mport);
+		exit(1);
+	}
 
 	char *os_release = mport_get_osrelease();
 
@@ -766,11 +763,11 @@ populate_update_packages(GtkTreeStore *store)
 				
 					gtk_tree_store_append(store, &iter, NULL);  /* Acquire an iterator */
 					gtk_tree_store_set(store, &iter,
-	        	      		    UPD_TITLE_COLUMN, (*packs)->name,
-	        	     	     	    UPD_VERSION_COLUMN, (*packs)->version,
-					    UPD_OS_RELEASE_COLUMN, (*packs)->os_release,
-					    UPD_NEW_VERSION_COLUMN, (*indexEntries)->version,
-	       		        	    -1);
+									   UPD_TITLE_COLUMN, (*packs)->name,
+									   UPD_VERSION_COLUMN, (*packs)->version,
+									   UPD_OS_RELEASE_COLUMN, (*packs)->os_release,
+									   UPD_NEW_VERSION_COLUMN, (*indexEntries)->version,
+									   -1);
 				}
 				indexEntries++;
 			}
