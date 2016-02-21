@@ -54,6 +54,8 @@ struct available_detail {
 	GtkWidget *labelVersion;
 	GtkWidget *labelName;
 	GtkWidget *label; // comment
+	GtkWidget *installButton;
+	GtkWidget *deleteButton;
 };
 
 struct available_detail detail;
@@ -84,6 +86,8 @@ enum
 
 static void button_clicked (GtkButton *button, GtkWindow *parent);
 static void update_button_clicked (GtkButton *button, GtkWindow *parent);
+static void install_button_clicked(GtkButton *button, GtkWidget *parent);
+static void delete_button_clicked(GtkButton *button, GtkWidget *parent);
 static void msgbox(GtkWindow *parent, char * msg);
 static void cut_clicked (GtkButton *, GtkEntry *);
 static void copy_clicked (GtkButton *, GtkEntry *);
@@ -96,17 +100,20 @@ static void populate_update_packages(GtkTreeStore *);
 static void populate_remote_index(GtkTreeStore *store);
 static void search_remote_index(GtkTreeStore *store, const char *query);
 static void gtk_box_pack_start_defaults(GtkBox *, GtkWidget *);
+static void create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search);
+static void create_detail_box(GtkWidget *parent);
+static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
+
+// mport stuff
+int delete(const char *packageName);
+static int indexCheck(mportInstance *, mportPackageMeta *);
+int install(mportInstance *mport, const char *packageName);
+int install_depends(mportInstance *mport, const char *packageName, const char *version);
 static void loadIndex(mportInstance *);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
 static int update(mportInstance *, const char *);
 static int upgrade(mportInstance *);
 static int updateDown(mportInstance *, mportPackageMeta *);
-static int indexCheck(mportInstance *, mportPackageMeta *);
-static void create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search);
-static void create_detail_box(GtkWidget *parent);
-static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
-
-
 
 int 
 main( int argc, char *argv[] )
@@ -282,6 +289,23 @@ create_detail_box(GtkWidget *parent) {
 	GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 	GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 	GtkWidget *iconBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+
+	// buttons
+	GtkWidget *buttonBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+
+	// create install button and wire it up
+	detail.installButton = gtk_button_new_with_mnemonic("_Install Application");
+	g_signal_connect (G_OBJECT (detail.installButton), "clicked",
+                    G_CALLBACK (install_button_clicked),
+                    (gpointer) parent);
+	gtk_box_pack_start_defaults(GTK_BOX(buttonBox), detail.installButton);
+
+	// create remove button and wire it up
+	detail.deleteButton = gtk_button_new_with_mnemonic("_Remove Application");
+	g_signal_connect (G_OBJECT (detail.deleteButton), "clicked",
+                    G_CALLBACK (delete_button_clicked),
+                    (gpointer) parent);
+	gtk_box_pack_start_defaults(GTK_BOX(buttonBox), detail.deleteButton);
 	
 	// setup header bar
 	gtk_header_bar_set_title(GTK_HEADER_BAR(headerBar), "Detail");	
@@ -299,12 +323,15 @@ create_detail_box(GtkWidget *parent) {
 	gtk_box_pack_start(GTK_BOX(iconBox), detail.labelVersion, FALSE, TRUE, 0);
 	
 	// set up outer box
-
 	gtk_container_set_border_width (GTK_CONTAINER (hbox), 10);
 	gtk_box_pack_start_defaults(GTK_BOX(hbox), iconBox);
 	gtk_box_pack_start_defaults(GTK_BOX(hbox), detail.label);
 	
+	// put our hbox for detail info into the vbox
 	gtk_box_pack_start_defaults(GTK_BOX(vbox), hbox);
+	gtk_box_pack_start_defaults(GTK_BOX(vbox), buttonBox);
+	
+	// add to the parent container.
 	gtk_container_add(GTK_CONTAINER (parent), vbox);
 }
 
@@ -539,6 +566,144 @@ button_clicked(GtkButton *button, GtkWindow *parent)
 		search_remote_index(GTK_TREE_STORE(model), query);
 	}
 }
+
+static void 
+install_button_clicked(GtkButton *button, GtkWidget *parent) 
+{
+	__block int resultCode = 0;
+	dispatch_group_async(grp, q, ^{
+		const gchar *c = gtk_label_get_text(GTK_LABEL(detail.labelName));
+		if (c == NULL)
+			puts("oh noes");
+                loadIndex(mport);
+                resultCode = install(mport, c);
+		fprintf(stderr, "Install returned %d", resultCode);
+        });
+}
+
+static void 
+delete_button_clicked(GtkButton *button, GtkWidget *parent) 
+{
+	__block int result = 0;
+	dispatch_group_async(grp, q, ^{
+		const gchar *c = gtk_label_get_text(GTK_LABEL(detail.labelName));
+		result = delete(c);   
+		fprintf(stderr, "Delete returned %d", result);	   
+	});
+}
+
+int
+install(mportInstance *mport, const char *packageName) 
+{
+        mportIndexEntry **indexEntry;
+        mportIndexEntry **i2;
+        int resultCode;
+        int item;
+        int choice;
+
+        indexEntry = lookupIndex(mport, packageName);
+        if (indexEntry == NULL || *indexEntry == NULL)
+                errx(4, "Package %s not found in the index.", packageName);
+
+        if (indexEntry[1] != NULL) {
+                printf("Multiple packages found. Please select one:\n");
+                i2 = indexEntry;
+                item = 0;
+                while (*i2 != NULL) {
+                        printf("%d. %s-%s\n", item, (*i2)->pkgname,
+                                (*i2)->version);
+                        item++;
+                        i2++;
+                }
+                while (scanf("%d", &choice) < 1 || choice > item || choice < 0) {
+                        fprintf(stderr, "Please select an entry 0 - %d\n", item -1);
+                }
+                item = 0;
+                while (indexEntry != NULL) {
+                        if (item == choice)
+                                break;
+                        item++;
+                        indexEntry++;
+                }
+        }
+
+        resultCode = install_depends(mport, (*indexEntry)->pkgname, (*indexEntry)->version);
+
+        mport_index_entry_free_vec(indexEntry);
+
+        return (resultCode);
+}
+
+int
+install_depends(mportInstance *mport, const char *packageName, const char *version) 
+{
+        mportPackageMeta **packs;
+        mportDependsEntry **depends;
+
+        if (packageName == NULL || version == NULL)
+                return (1);
+
+        mport_index_depends_list(mport, packageName, version, &depends);
+
+        if (mport_pkgmeta_search_master(mport, &packs, "pkg=%Q", packageName) != MPORT_OK) {
+                warnx("%s", mport_err_string());
+                return mport_err_code();
+        }
+
+        if (packs == NULL && depends == NULL) {
+                /* Package is not installed and there are no dependencies */
+                if (mport_install(mport, packageName, version, NULL) != MPORT_OK) {
+                        warnx("%s", mport_err_string());
+                        return mport_err_code();
+                }
+        } else if (packs == NULL) {
+                /* Package is not installed */
+                while (*depends != NULL) {
+                        install_depends(mport, (*depends)->d_pkgname, (*depends)->d_version);
+                        depends++;
+                }
+                if (mport_install(mport, packageName, version, NULL) != MPORT_OK) {
+                        warnx("%s", mport_err_string());
+                        return mport_err_code();
+                }
+                mport_index_depends_free_vec(depends);
+        } else {
+                /* already installed */
+                mport_pkgmeta_vec_free(packs);
+                mport_index_depends_free_vec(depends);
+        }
+
+        return (0);
+}
+
+
+int
+delete(const char *packageName) {
+ 	const char *where = "LOWER(pkg)=LOWER(%Q)";
+	mportPackageMeta **packs;
+
+ 	if (mport_pkgmeta_search_master(mport, &packs, where, packageName) != MPORT_OK) {
+	    warnx("%s", mport_err_string());
+	    mport_instance_free(mport);
+	    exit(1);
+	  }
+
+  	if (packs == NULL) {
+	    warnx("No packages installed matching '%s'", packageName);
+	    exit(3);
+	}
+
+  while (*packs != NULL) {
+    if (mport_delete_primative(mport, *packs, 0) != MPORT_OK) {
+      warnx("%s", mport_err_string());
+      mport_instance_free(mport);
+      exit(1);
+    }
+    packs++;
+  }
+	return 0; // todo: handler
+}
+
 
 static void 
 msgbox( GtkWindow * parent, char * msg )
