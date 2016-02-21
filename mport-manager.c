@@ -32,6 +32,7 @@ SUCH DAMAGE.
 #include <err.h>
 #include <string.h>
 
+#include <dispatch/dispatch.h>
 #include <mport.h>
 
 #define NAME "MidnightBSD Package Manager"
@@ -42,7 +43,6 @@ GtkWidget *search; /* textboxes */
 GtkWidget *tree;
 GtkWidget *installedTree;
 GtkWidget *updateTree;
-GtkTextBuffer *buffer;
 
 mportInstance *mport;
 
@@ -86,10 +86,10 @@ main( int argc, char *argv[] )
 	q = dispatch_queue_create("print", NULL);
 	mport = mport_instance_new();
 
-        if (mport_instance_init(mport, NULL) != MPORT_OK) {
-                warnx("%s", mport_err_string());
-                exit(1);
-        }
+	if (mport_instance_init(mport, NULL) != MPORT_OK) {
+		warnx("%s", mport_err_string());
+		exit(1);
+	}
 
 	gtk_init( &argc, &argv );
 
@@ -182,8 +182,6 @@ main( int argc, char *argv[] )
 	gtk_container_add( GTK_CONTAINER (window), stackHolder);
 	gtk_widget_show_all( window );
 
-//	gtk_main();
-
 	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
 	dispatch_async(mainq, ^{	
 		gtk_main();
@@ -192,8 +190,6 @@ main( int argc, char *argv[] )
 	});
 
 	dispatch_main();
-
-	return 0;
 }
 
 static void
@@ -235,7 +231,7 @@ create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search) {
 	
 
 	// connect menubar to parent
-        gtk_container_add (GTK_CONTAINER (parent), menuBar);
+	gtk_container_add (GTK_CONTAINER (parent), menuBar);
 }
 
 /*
@@ -368,8 +364,8 @@ update(mportInstance *mport, const char *packageName) {
 	char *path;
 
 	indexEntry = lookupIndex(mport, packageName);
-        if (indexEntry == NULL || *indexEntry == NULL)
-                return (1);
+	if (indexEntry == NULL || *indexEntry == NULL)
+		return (1);
 
 	asprintf(&path, "%s/%s", MPORT_LOCAL_PKG_PATH, (*indexEntry)->bundlefile);
 
@@ -418,28 +414,14 @@ static void
 button_clicked(GtkButton *button, GtkWindow *parent)
 {
     const gchar *query;
-    char *c;
-    GtkTextIter start, end;
-
-puts("foo");
 
     query = gtk_entry_get_text( GTK_ENTRY (search) );
-    /*gtk_text_buffer_get_bounds (buffer, &start, &end);
-    c = gtk_text_iter_get_text (&start, &end); */
-   
+
 	GtkTreeModel * model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree));
 	if (model != NULL) {
-puts("before clear");
 		gtk_tree_store_clear(GTK_TREE_STORE(model));
-		// TODO:
 		search_remote_index(GTK_TREE_STORE(model), query);
 	}
-puts("after");
-    /* if we get here it worked.  Clear the entry data TODO: do we want this*/
-  /*  gtk_entry_set_text( GTK_ENTRY (search), "" );
-    gtk_text_buffer_set_text (buffer, "", -1);
-
-    g_free(c); */
 }
 
 static void 
@@ -450,7 +432,7 @@ msgbox( GtkWindow * parent, char * msg )
     /* Create a non-modal dialog with one OK button. */
     dialog = gtk_dialog_new_with_buttons ("Information", parent,
                                         GTK_DIALOG_DESTROY_WITH_PARENT,
-					   ("_OK"),
+					  					 ("_OK"),
                                       	GTK_RESPONSE_ACCEPT,
                                       	NULL);
 
