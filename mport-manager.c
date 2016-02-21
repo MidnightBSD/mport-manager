@@ -772,29 +772,49 @@ search_remote_index(GtkTreeStore *store, const char *query)
 static void 
 populate_remote_index(GtkTreeStore *store) 
 {
-        mportIndexEntry **packs;
+        mportIndexEntry **indexEntries;
+	mportPackageMeta **packs;
 
 	if (mport_index_load(mport) != MPORT_OK)
 		errx(4, "Unable to load updates index");
 
-        if (mport_index_list(mport, &packs) != MPORT_OK) {
+        if (mport_index_list(mport, &indexEntries) != MPORT_OK) {
                 warnx("%s", mport_err_string());
                 mport_instance_free(mport);
                 exit(1);
         }
 
-	while (*packs != NULL) {
+ 	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
+    		warnx("%s", mport_err_string());
+    		mport_instance_free(mport);
+   		exit(1);
+  	}
+
+	while (*indexEntries != NULL) {
 		dispatch_group_async(grp, q, ^{
 			GtkTreeIter   iter;
 			gtk_tree_store_append (store, &iter, NULL);
+
+			gboolean installed = FALSE;
+ 			mportPackageMeta **p2 = packs;
+  			while (*p2 != NULL) {
+				if ( (strcmp( (*indexEntries)->pkgname, (*p2)->name) == 0) && 
+				     (strcmp( (*indexEntries)->version, (*p2)->version) == 0) ) {
+				        installed = TRUE;
+					break;
+				}
+		
+				p2++;
+			}
+
 			gtk_tree_store_set (store, &iter,
-        	            TITLE_COLUMN, (*packs)->pkgname,
-        	            VERSION_COLUMN, (*packs)->version,
-        	            INSTALLED_COLUMN, TRUE,
+        	            TITLE_COLUMN, (*indexEntries)->pkgname,
+        	            VERSION_COLUMN, (*indexEntries)->version,
+        	            INSTALLED_COLUMN, installed,
        		            -1);
 		
 		});
-		packs++;
+		indexEntries++;
 	}
 
 	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
