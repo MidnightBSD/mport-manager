@@ -294,7 +294,7 @@ create_detail_box(GtkWidget *parent) {
 	detail.image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
 
 	// set up label area
-	gtk_box_pack_start(iconBox, detail.image, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(iconBox), detail.image, FALSE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(iconBox), detail.labelName, FALSE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(iconBox), detail.labelVersion, FALSE, TRUE, 0);
 	
