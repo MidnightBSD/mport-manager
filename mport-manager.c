@@ -734,11 +734,11 @@ populate_update_packages(GtkTreeStore *store)
 {
 	mportPackageMeta **packs;
 	
-        if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
-                warnx("%s", mport_err_string());
-                mport_instance_free(mport);
-                exit(1);
-        }
+	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
+		warnx("%s", mport_err_string());
+		mport_instance_free(mport);
+		exit(1);
+	}
 
 	char *os_release = mport_get_osrelease();
 
@@ -763,11 +763,11 @@ populate_update_packages(GtkTreeStore *store)
 				
 					gtk_tree_store_append(store, &iter, NULL);  /* Acquire an iterator */
 					gtk_tree_store_set(store, &iter,
-	        	      		    UPD_TITLE_COLUMN, (*packs)->name,
-	        	     	     	    UPD_VERSION_COLUMN, (*packs)->version,
-					    UPD_OS_RELEASE_COLUMN, (*packs)->os_release,
-					    UPD_NEW_VERSION_COLUMN, (*indexEntries)->version,
-	       		        	    -1);
+									   UPD_TITLE_COLUMN, (*packs)->name,
+									   UPD_VERSION_COLUMN, (*packs)->version,
+									   UPD_OS_RELEASE_COLUMN, (*packs)->os_release,
+									   UPD_NEW_VERSION_COLUMN, (*indexEntries)->version,
+									   -1);
 				}
 				indexEntries++;
 			}
