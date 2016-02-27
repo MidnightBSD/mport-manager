@@ -32,7 +32,10 @@ SUCH DAMAGE.
 #include <err.h>
 #include <string.h>
 
+#if defined(__MidnightBSD_version) && (__MidnightBSD_version > 8000)
+#define DISPATCH
 #include <dispatch/dispatch.h>
+#endif
 #include <mport.h>
 
 #define NAME "MidnightBSD Package Manager"
@@ -46,8 +49,10 @@ GtkWidget *updateTree;
 
 mportInstance *mport;
 
+#if defined(DISPATCH)
 dispatch_group_t grp;
 dispatch_queue_t q;
+#endif
 
 struct available_detail {
 	GtkWidget *image; // icon
@@ -125,9 +130,11 @@ main( int argc, char *argv[] )
 	GtkWidget *stack;
 	GdkPixbuf *icon;
 
+#if defined(DISPATCH)
 	dispatch_queue_t mainq = dispatch_get_main_queue();
 	grp = dispatch_group_create();
 	q = dispatch_queue_create("print", NULL);
+#endif
 	mport = mport_instance_new();
 
 	if (mport_instance_init(mport, NULL) != MPORT_OK) {
@@ -227,14 +234,19 @@ main( int argc, char *argv[] )
 	gtk_container_add( GTK_CONTAINER (window), stackHolder);
 	gtk_widget_show_all( window );
 
+	#if defined(DISPATCH)
 	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
-	dispatch_async(mainq, ^{	
+	dispatch_async(mainq, ^{
+	#endif
 		gtk_main();
 		mport_instance_free(mport); 
 		exit(0);
+
+	#if defined(DISPATCH)
 	});
 
 	dispatch_main();
+	#endif
 }
 
 
@@ -388,11 +400,15 @@ gtk_box_pack_start_defaults(GtkBox *box, GtkWidget *widget)  {
 static void
 update_button_clicked(GtkButton *button, GtkWindow *parent) 
 {
+#if defined(DISPATCH)
 	dispatch_group_async(grp, q, ^{
+#endif
 		loadIndex(mport);
 		int resultCode = upgrade(mport);
 		// TODO: handle errors
+#if defined(DISPATCH)
 	});
+#endif
 }
 
 void
@@ -571,25 +587,35 @@ static void
 install_button_clicked(GtkButton *button, GtkWidget *parent) 
 {
 	__block int resultCode = 0;
+#if defined(DISPATCH)
 	dispatch_group_async(grp, q, ^{
+#endif
 		const gchar *c = gtk_label_get_text(GTK_LABEL(detail.labelName));
-		if (c == NULL)
-			puts("oh noes");
+		if (c == NULL) {
+			puts("mport package name not defined.");
+			return;
+		}
                 loadIndex(mport);
                 resultCode = install(mport, c);
 		fprintf(stderr, "Install returned %d", resultCode);
+#if defined(DISPATCH)
         });
+#endif
 }
 
 static void 
 delete_button_clicked(GtkButton *button, GtkWidget *parent) 
 {
 	__block int result = 0;
+#if defined(DISPATCH)
 	dispatch_group_async(grp, q, ^{
+#endif
 		const gchar *c = gtk_label_get_text(GTK_LABEL(detail.labelName));
 		result = delete(c);   
 		fprintf(stderr, "Delete returned %d", result);	   
+#if defined(DISPATCH)
 	});
+#endif
 }
 
 int
@@ -956,7 +982,9 @@ populate_remote_index(GtkTreeStore *store)
   	}
 
 	while (*indexEntries != NULL) {
+#if defined(DISPATCH)
 		dispatch_group_async(grp, q, ^{
+#endif
 			GtkTreeIter   iter;
 			gtk_tree_store_append (store, &iter, NULL);
 
@@ -977,12 +1005,15 @@ populate_remote_index(GtkTreeStore *store)
         	            VERSION_COLUMN, (*indexEntries)->version,
         	            INSTALLED_COLUMN, installed,
        		            -1);
-		
+#if defined(DISPATCH)
 		});
+#endif
 		indexEntries++;
 	}
 
+#if defined(DISPATCH)
 	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
+#endif
 }
 
 static void 
@@ -997,19 +1028,24 @@ populate_installed_packages(GtkTreeStore *store)
         }
 
 	while (*packs != NULL) {
+#if defined(DISPATCH)
 		dispatch_group_async(grp, q, ^{
+#endif
 			GtkTreeIter   iter;
 			gtk_tree_store_append (store, &iter, NULL);
 			gtk_tree_store_set (store, &iter,
         	            INST_TITLE_COLUMN, (*packs)->name,
         	            INST_VERSION_COLUMN, (*packs)->version,
        		            -1);
-			
+#if defined(DISPATCH)
 		});
+#endif
 		packs++;
 	}
 
+#if defined(DISPATCH)
 	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
+#endif
 }
 
 static void 
@@ -1026,7 +1062,9 @@ populate_update_packages(GtkTreeStore *store)
 	char *os_release = mport_get_osrelease();
 
 	while (*packs != NULL) {
+#if defined(DISPATCH)
 		dispatch_group_async(grp, q, ^{
+#endif
 			mportIndexEntry **indexEntries;
 			GtkTreeIter   iter;
 
@@ -1057,10 +1095,14 @@ populate_update_packages(GtkTreeStore *store)
 				
 			mport_index_entry_free_vec(iestart);
 			indexEntries = NULL;
-		});		
+#if defined(DISPATCH)
+		});
+#endif
 			
 		packs++;
 	}
 
+#if defined(DISPATCH)
 	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
+#endif
 }
