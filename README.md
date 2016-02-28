@@ -14,3 +14,11 @@ sudo make install
 
 To run:
 sudo mport-manager
+
+
+NOTE:
+0.7 is partially supported as long as you're runing a recent
+stable rather than the ISO for the release.
+
+As libdispatch was not complied with blocks support in 0.7,
+ifdef's with DISPATCH are guarding those sections.
