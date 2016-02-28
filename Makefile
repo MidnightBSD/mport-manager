@@ -18,6 +18,7 @@ install:
 	install mport-manager ${DESTDIR}${PREFIX}/bin/mport-manager
 	mkdir -p ${DESTDIR}${DATADIR}
 	install icon.png ${DESTDIR}${DATADIR}/icon.png
+	install mport-manager.desktop ${DESTDIR}${PREFIX}/share/applications/
 
 clean:
 	rm -f *.o mport-manager
