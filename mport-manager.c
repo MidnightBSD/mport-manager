@@ -93,7 +93,7 @@ static void button_clicked (GtkButton *button, GtkWindow *parent);
 static void update_button_clicked (GtkButton *button, GtkWindow *parent);
 static void install_button_clicked(GtkButton *button, GtkWidget *parent);
 static void delete_button_clicked(GtkButton *button, GtkWidget *parent);
-static void msgbox(GtkWindow *parent, char * msg);
+static void msgbox(GtkWindow *parent, const char * msg);
 static void cut_clicked (GtkButton *, GtkEntry *);
 static void copy_clicked (GtkButton *, GtkEntry *);
 static void paste_clicked (GtkButton *, GtkEntry *);
@@ -405,7 +405,8 @@ update_button_clicked(GtkButton *button, GtkWindow *parent)
 #endif
 		loadIndex(mport);
 		int resultCode = upgrade(mport);
-		// TODO: handle errors
+		if (resultCode != MPORT_OK)
+			msgbox(parent, mport_err_string());
 #if defined(DISPATCH)
 	});
 #endif
@@ -732,7 +733,7 @@ delete(const char *packageName) {
 
 
 static void 
-msgbox( GtkWindow * parent, char * msg )
+msgbox(GtkWindow *parent, const char *msg)
 {
     GtkWidget *dialog, *label, *image, *hbox;
 
