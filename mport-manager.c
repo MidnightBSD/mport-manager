@@ -114,7 +114,6 @@ int delete(const char *packageName);
 static int indexCheck(mportInstance *, mportPackageMeta *);
 int install(mportInstance *mport, const char *packageName);
 int install_depends(mportInstance *mport, const char *packageName, const char *version);
-static void loadIndex(mportInstance *);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
 static int update(mportInstance *, const char *);
 static int upgrade(mportInstance *);
@@ -141,6 +140,9 @@ main( int argc, char *argv[] )
 		warnx("%s", mport_err_string());
 		exit(1);
 	}
+
+        if (mport_index_load(mport) != MPORT_OK)
+		errx(4, "Unable to load updates index");
 
 	gtk_init( &argc, &argv );
 
@@ -403,22 +405,12 @@ update_button_clicked(GtkButton *button, GtkWindow *parent)
 #if defined(DISPATCH)
 	dispatch_group_async(grp, q, ^{
 #endif
-		loadIndex(mport);
 		int resultCode = upgrade(mport);
 		if (resultCode != MPORT_OK)
 			msgbox(parent, mport_err_string());
 #if defined(DISPATCH)
 	});
 #endif
-}
-
-void
-loadIndex(mportInstance *mport) {
-	int result = mport_index_load(mport);
-	if (result == MPORT_ERR_WARN)
-		warnx("%s", mport_err_string());
-	else if (result != MPORT_OK)
-		errx(4, "Unable to load index %s", mport_err_string());
 }
 
 int
@@ -596,7 +588,6 @@ install_button_clicked(GtkButton *button, GtkWidget *parent)
 			puts("mport package name not defined.");
 			return;
 		}
-                loadIndex(mport);
                 resultCode = install(mport, c);
 		fprintf(stderr, "Install returned %d", resultCode);
 #if defined(DISPATCH)
@@ -934,9 +925,6 @@ search_remote_index(GtkTreeStore *store, const char *query)
 		return;
 	}
 
-	if (mport_index_load(mport) != MPORT_OK)
-		errx(4, "Unable to load updates index");
-
         if (mport_index_search(mport, &packs, "pkg glob %Q or comment glob %Q", query, query) != MPORT_OK) {
                 warnx("%s", mport_err_string());
                 mport_instance_free(mport);
@@ -966,9 +954,6 @@ populate_remote_index(GtkTreeStore *store)
 {
         mportIndexEntry **indexEntries;
 	mportPackageMeta **packs;
-
-	if (mport_index_load(mport) != MPORT_OK)
-		errx(4, "Unable to load updates index");
 
         if (mport_index_list(mport, &indexEntries) != MPORT_OK) {
                 warnx("%s", mport_err_string());
