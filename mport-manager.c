@@ -385,7 +385,6 @@ create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search) {
 	gtk_menu_item_set_submenu (GTK_MENU_ITEM (menuItem2), submenu2);
 	gtk_menu_shell_append (GTK_MENU_SHELL (menuBar), menuItem2);
 
-	
 
 	// connect menubar to parent
 	gtk_container_add (GTK_CONTAINER (parent), menuBar);
@@ -590,6 +589,10 @@ install_button_clicked(GtkButton *button, GtkWidget *parent)
 		}
                 resultCode = install(mport, c);
 		fprintf(stderr, "Install returned %d", resultCode);
+
+		/* reload search data after install */
+		button_clicked(button, NULL);
+
 #if defined(DISPATCH)
         });
 #endif
@@ -605,6 +608,9 @@ delete_button_clicked(GtkButton *button, GtkWidget *parent)
 		const gchar *c = gtk_label_get_text(GTK_LABEL(detail.labelName));
 		result = delete(c);   
 		fprintf(stderr, "Delete returned %d", result);	   
+
+		/* reload search data after delete */
+		button_clicked(button, NULL);
 #if defined(DISPATCH)
 	});
 #endif
