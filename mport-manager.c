@@ -1,27 +1,27 @@
 /*-
-Copyright (C) 2008, 2016 Lucas Holt. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-1. Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright
-   notice, this list of conditions and the following disclaimer in the
-   documentation and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED.  IN NO EVENT SHALL AUTHOR OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-SUCH DAMAGE.
-*/
+ * Copyright (C) 2008, 2016 Lucas Holt. All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
 
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
@@ -89,8 +89,10 @@ enum
 	UPD_N_COLUMNS
 };
 
-static void button_clicked (GtkButton *button, GtkWindow *parent);
-static void update_button_clicked (GtkButton *button, GtkWindow *parent);
+static void do_search(void);
+static void button_clicked(GtkButton *button, GtkWindow *parent);
+static void reset_search_button_clicked(GtkButton *button, GtkWindow *parent);
+static void update_button_clicked(GtkButton *button, GtkWindow *parent);
 static void install_button_clicked(GtkButton *button, GtkWidget *parent);
 static void delete_button_clicked(GtkButton *button, GtkWidget *parent);
 static void msgbox(GtkWindow *parent, const char * msg);
@@ -110,10 +112,10 @@ static void create_detail_box(GtkWidget *parent);
 static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 
 // mport stuff
-int delete(const char *packageName);
+static int delete(const char *);
 static int indexCheck(mportInstance *, mportPackageMeta *);
-int install(mportInstance *mport, const char *packageName);
-int install_depends(mportInstance *mport, const char *packageName, const char *version);
+static int install(mportInstance *, const char *);
+static int install_depends(mportInstance *, const char *, const char *);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
 static int update(mportInstance *, const char *);
 static int upgrade(mportInstance *);
@@ -123,7 +125,8 @@ int
 main( int argc, char *argv[] )
 {
 	GtkWidget *window, *vbox, *authbox, *vauthbox;
-	GtkWidget *submit;
+	GtkWidget *submit; // search button
+	GtkWidget *resetSearchButton;
 	GtkWidget *scrolled_win;
 	GtkWidget *stackSwitcher;
 	GtkWidget *stack;
@@ -167,6 +170,12 @@ main( int argc, char *argv[] )
                     G_CALLBACK (button_clicked),
                     (gpointer) window);
 
+	// create reset search button
+	resetSearchButton = gtk_button_new_with_mnemonic("_Reset");
+	g_signal_connect (G_OBJECT (resetSearchButton), "clicked",
+                    G_CALLBACK (reset_search_button_clicked),
+                    (gpointer) window);
+
 	setup_tree();
 	create_installed_tree();
 	create_update_tree();
@@ -178,7 +187,8 @@ main( int argc, char *argv[] )
 
 	authbox = gtk_box_new( GTK_ORIENTATION_HORIZONTAL, 5 );
 	gtk_box_pack_start_defaults( GTK_BOX (authbox), search );
-	gtk_box_pack_start( GTK_BOX (authbox), submit, FALSE, TRUE, 5 );
+	gtk_box_pack_start( GTK_BOX (authbox), submit, FALSE, TRUE, 3 );
+	gtk_box_pack_start( GTK_BOX(authbox), resetSearchButton, FALSE, TRUE, 3 );
 
 	vauthbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
 	gtk_box_pack_start_defaults( GTK_BOX (vauthbox), authbox );
@@ -398,6 +408,7 @@ gtk_box_pack_start_defaults(GtkBox *box, GtkWidget *widget)  {
 	gtk_box_pack_start(box, widget, TRUE, TRUE, 0);
 }
 
+
 static void
 update_button_clicked(GtkButton *button, GtkWindow *parent) 
 {
@@ -564,6 +575,13 @@ lookupIndex(mportInstance *mport, const char *packageName) {
 static void 
 button_clicked(GtkButton *button, GtkWindow *parent)
 {
+
+	do_search();
+}
+
+static void
+do_search(void)
+{
 	const gchar *query;
 
 	query = gtk_entry_get_text( GTK_ENTRY (search) );  
@@ -573,6 +591,14 @@ button_clicked(GtkButton *button, GtkWindow *parent)
 		gtk_tree_store_clear(GTK_TREE_STORE(model));
 		search_remote_index(GTK_TREE_STORE(model), query);
 	}
+}
+
+static void 
+reset_search_button_clicked(GtkButton *button, GtkWindow *parent)
+{
+
+	gtk_entry_set_text(GTK_ENTRY(search), "");
+	do_search();
 }
 
 static void 
@@ -616,7 +642,7 @@ delete_button_clicked(GtkButton *button, GtkWidget *parent)
 #endif
 }
 
-int
+static int
 install(mportInstance *mport, const char *packageName) 
 {
         mportIndexEntry **indexEntry;
@@ -658,7 +684,7 @@ install(mportInstance *mport, const char *packageName)
         return (resultCode);
 }
 
-int
+static int
 install_depends(mportInstance *mport, const char *packageName, const char *version) 
 {
         mportPackageMeta **packs;
@@ -701,7 +727,7 @@ install_depends(mportInstance *mport, const char *packageName, const char *versi
 }
 
 
-int
+static int
 delete(const char *packageName) {
  	const char *where = "LOWER(pkg)=LOWER(%Q)";
 	mportPackageMeta **packs;
