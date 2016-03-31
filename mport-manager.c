@@ -65,6 +65,11 @@ struct available_detail {
 
 struct available_detail detail;
 
+/*
+ * Installed Software Tab's selected name
+ */
+char selectedInstalled[256];
+
 enum
 {
 	TITLE_COLUMN,
@@ -95,6 +100,7 @@ static void reset_search_button_clicked(GtkButton *button, GtkWindow *parent);
 static void update_button_clicked(GtkButton *button, GtkWindow *parent);
 static void install_button_clicked(GtkButton *button, GtkWidget *parent);
 static void delete_button_clicked(GtkButton *button, GtkWidget *parent);
+static void installed_delete_button_clicked(GtkButton *button, GtkWidget *parent);
 static void msgbox(GtkWindow *parent, const char * msg);
 static void cut_clicked (GtkButton *, GtkEntry *);
 static void copy_clicked (GtkButton *, GtkEntry *);
@@ -110,6 +116,7 @@ static void gtk_box_pack_start_defaults(GtkBox *, GtkWidget *);
 static void create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search);
 static void create_detail_box(GtkWidget *parent);
 static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
+static void installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 
 // mport stuff
 static int delete(const char *);
@@ -211,6 +218,16 @@ main( int argc, char *argv[] )
 	gtk_container_add (GTK_CONTAINER (scrolled_installed), installedTree);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_installed),
                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+	// create remove button on Installed Software
+	GtkWidget *removeInstalledAppButton = gtk_button_new_with_mnemonic("_Remove Application");
+	g_signal_connect (G_OBJECT (removeInstalledAppButton), "clicked",
+                    G_CALLBACK (installed_delete_button_clicked),
+                    (gpointer) window);
+	// create update box
+	GtkWidget *installedBox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+	gtk_box_pack_start( GTK_BOX (installedBox), scrolled_installed, TRUE, TRUE, 5 );
+	gtk_box_pack_start( GTK_BOX (installedBox), removeInstalledAppButton, FALSE, TRUE, 5 );
+
 
 	// Scroll for updates
 	GtkWidget *scrolled_updates = gtk_scrolled_window_new (NULL, NULL);
@@ -230,7 +247,7 @@ main( int argc, char *argv[] )
 
 	// add all the stacks
 	gtk_stack_add_titled(GTK_STACK(stack), vbox, "page-1", "Available Software");
-	gtk_stack_add_titled(GTK_STACK(stack), scrolled_installed, "page-2", "Installed Software");
+	gtk_stack_add_titled(GTK_STACK(stack), installedBox, "page-2", "Installed Software");
 	gtk_stack_add_titled(GTK_STACK(stack), updateBox, "page-3", "Updates");
 
 	gtk_stack_set_visible_child(GTK_STACK(stack), vbox);
@@ -259,6 +276,55 @@ main( int argc, char *argv[] )
 
 	dispatch_main();
 	#endif
+}
+
+static void
+installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data) {
+	GtkTreeIter   iter;
+  	GtkTreeModel *model;
+	mportIndexEntry **indexEntries;
+
+	model = gtk_tree_view_get_model(treeView);
+
+	if (gtk_tree_model_get_iter(model, &iter, path)) {
+		gchar *name;
+		gchar *version;
+
+	 	gtk_tree_model_get(model, &iter, INST_TITLE_COLUMN, &name, -1);
+		gtk_tree_model_get(model, &iter, INST_VERSION_COLUMN, &version, -1);
+
+		if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
+			fprintf(stderr, "Error Looking up package name %s: %d %s\n", name,  mport_err_code(), mport_err_string());
+			// TODO: gui dialog for error?
+			return;
+		}
+
+		if (indexEntries != NULL) {
+			while (*indexEntries != NULL) {
+				if ((*indexEntries)->version != NULL && mport_version_cmp(version, (*indexEntries)->version) == 0) {
+					
+					strncpy(selectedInstalled, name, 255);
+					selectedInstalled[255] = '\0';
+
+					/*gtk_label_set_text(GTK_LABEL(detail.label), (*indexEntries)->comment);
+					gtk_label_set_text(GTK_LABEL(detail.labelVersion), (*indexEntries)->version);
+					gtk_label_set_text(GTK_LABEL(detail.labelName), (*indexEntries)->pkgname);
+					*/
+
+					break;
+				}
+				indexEntries++;
+			}
+			mport_index_entry_free_vec(indexEntries);
+		}
+
+		// TODO: for debug
+		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
+
+
+		g_free(name);
+		g_free(version);
+  	}
 }
 
 
@@ -642,6 +708,25 @@ delete_button_clicked(GtkButton *button, GtkWidget *parent)
 #endif
 }
 
+static void 
+installed_delete_button_clicked(GtkButton *button, GtkWidget *parent) 
+{
+	__block int result = 0;
+#if defined(DISPATCH)
+	dispatch_group_async(grp, q, ^{
+#endif
+		if (selectedInstalled != NULL) {
+			result = delete(selectedInstalled);   
+			fprintf(stderr, "Delete returned %d", result);	   
+
+			/* reload search data after delete */
+			button_clicked(button, NULL);
+		}
+#if defined(DISPATCH)
+	});
+#endif
+}
+
 static int
 install(mportInstance *mport, const char *packageName) 
 {
@@ -848,7 +933,7 @@ setup_tree(void)
                                                       NULL);
    gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
 
-	// TOOD: FOO signlal
+	// TOOD: FOO signal
 	g_signal_connect (G_OBJECT(tree), "row-activated",
                     G_CALLBACK (available_row_click_handler),
                     (gpointer) NULL);
@@ -857,39 +942,42 @@ setup_tree(void)
 static void
 create_installed_tree(void)
 {
-   GtkTreeStore *store;
+	GtkTreeStore *store;
    
-   GtkTreeViewColumn *column;
-   GtkCellRenderer *renderer;
+	GtkTreeViewColumn *column;
+	GtkCellRenderer *renderer;
 
-   store = gtk_tree_store_new (INST_N_COLUMNS,
+	store = gtk_tree_store_new (INST_N_COLUMNS,
                                G_TYPE_STRING,
                                G_TYPE_STRING);
 
-   populate_installed_packages(store);
+	populate_installed_packages(store);
 
-   installedTree = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
-   /* The view now holds a reference.  We can get rid of our own
-    * reference */
-   g_object_unref (G_OBJECT (store));
+	installedTree = gtk_tree_view_new_with_model(GTK_TREE_MODEL(store));
+	g_object_unref(G_OBJECT(store));
+	gtk_tree_view_set_activate_on_single_click(GTK_TREE_VIEW(installedTree), true);
 
-   renderer = gtk_cell_renderer_text_new ();
-   column = gtk_tree_view_column_new_with_attributes ("Title",
+	renderer = gtk_cell_renderer_text_new();
+	column = gtk_tree_view_column_new_with_attributes ("Title",
                                                       renderer,
                                                       "text", INST_TITLE_COLUMN,
                                                       NULL);
-   gtk_tree_view_append_column (GTK_TREE_VIEW (installedTree), column);
+	gtk_tree_view_append_column(GTK_TREE_VIEW(installedTree), column);
 
-   renderer = gtk_cell_renderer_text_new ();
-   g_object_set (G_OBJECT (renderer),
+	renderer = gtk_cell_renderer_text_new();
+	g_object_set (G_OBJECT (renderer),
                  "foreground", "red",
                  NULL);
 
-   column = gtk_tree_view_column_new_with_attributes ("Version", renderer,
+	column = gtk_tree_view_column_new_with_attributes ("Version", renderer,
                                                       "text", INST_VERSION_COLUMN,
                                                       NULL);
 
-   gtk_tree_view_append_column (GTK_TREE_VIEW (installedTree), column);
+	gtk_tree_view_append_column (GTK_TREE_VIEW(installedTree), column);
+
+	g_signal_connect (G_OBJECT(installedTree), "row-activated",
+                    G_CALLBACK (installed_tree_available_row_click_handler),
+                    (gpointer) NULL);
 }
 
 /*
