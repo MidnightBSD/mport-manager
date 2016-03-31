@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=MidnightBSD Package Manager
 Exec=mport-manager
-Icon=
+Icon=mport-manager.png
 Type=Application
 Categories=GTK;Settings;Utility;System;
