@@ -335,7 +335,6 @@ mport_gtk_progress_step_cb(int current, int total, const char *msg)
 		current = total;
 
 	percent = (gdouble)current / (gdouble)total;
-	fprintf(stderr, "percent %f\n", percent);
 
 	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), percent);
 	while (gtk_events_pending ())
@@ -346,7 +345,6 @@ void
 mport_gtk_progress_free_cb(void)
 {
 	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), "Task Completed");
-//	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), 0.0);
 }
 
 void
