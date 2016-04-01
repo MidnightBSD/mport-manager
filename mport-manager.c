@@ -122,6 +122,7 @@ static void create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search
 static void create_detail_box(GtkWidget *parent);
 static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 static void installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
+void reset_progress_bar(void);
 
 // mport stuff
 static int delete(const char *);
@@ -339,25 +340,31 @@ mport_gtk_progress_step_cb(int current, int total, const char *msg)
 	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), percent);
 	while (gtk_events_pending ())
 		gtk_main_iteration ();
-	//sleep(1);
-//	gtk_progress_bar_set_pulse_step(GTK_PROGRESS_BAR(progressBar), percent);
-
-	//gtk_progress_bar_pulse (GTK_PROGRESS_BAR(progressBar));
 }
 
 void 
 mport_gtk_progress_free_cb(void)
 {
+	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), "Task Completed");
+//	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), 0.0);
+}
 
-	//gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), 0.0);
+void
+reset_progress_bar(void) 
+{
+	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), "");
+	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), 0.0);
 }
 
 
 static void
-installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data) {
+installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data) 
+{
 	GtkTreeIter   iter;
   	GtkTreeModel *model;
 	mportIndexEntry **indexEntries;
+
+	reset_progress_bar();
 
 	model = gtk_tree_view_get_model(treeView);
 
@@ -403,6 +410,8 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 	GtkTreeIter   iter;
   	GtkTreeModel *model;
 	mportIndexEntry **indexEntries;
+
+	reset_progress_bar();
 
 	model = gtk_tree_view_get_model(treeView);
 
