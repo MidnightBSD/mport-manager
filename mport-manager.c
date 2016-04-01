@@ -103,6 +103,7 @@ static void install_button_clicked(GtkButton *button, GtkWidget *parent);
 static void delete_button_clicked(GtkButton *button, GtkWidget *parent);
 static void installed_delete_button_clicked(GtkButton *button, GtkWidget *parent);
 static void msgbox(GtkWindow *parent, const char * msg);
+static bool msgbox_bool(GtkWindow *parent, const char *msg);
 static void cut_clicked (GtkButton *, GtkEntry *);
 static void copy_clicked (GtkButton *, GtkEntry *);
 static void paste_clicked (GtkButton *, GtkEntry *);
@@ -298,30 +299,13 @@ mport_gtk_msg_cb(const char *msg) {
 int 
 mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def)
 {
-  size_t len;
-  char *ans;
- 
-  (void)fprintf(stderr, "%s (Y/N) [%s]: ", msg, def == 1 ? yes : no);
- 
-  while (1) {
-    /* get answer, if just \n, then default. */
-    ans = fgetln(stdin, &len);
+	bool response;
 
-    if (len == 1) {
-      /* user just hit return */
-      return def == 1 ? MPORT_OK : -1;
-    } 
-   
-    if (*ans == 'Y' || *ans == 'y')
-      return MPORT_OK;
-    if (*ans == 'N' || *ans == 'n')
-      return -1;
-   
-    (void)fprintf(stderr, "Please enter yes or no: ");
-  }
- 
-  /* Not reached */
-  return MPORT_OK;
+	response = msgbox_bool(GTK_WINDOW(window), msg);
+	if (response)
+		return MPORT_OK;
+	else
+		return -1;
 }
 
 
@@ -909,6 +893,50 @@ msgbox(GtkWindow *parent, const char *msg)
     g_signal_connect (G_OBJECT (dialog), "response",
                     G_CALLBACK (gtk_widget_destroy), NULL);
 }
+
+static bool 
+msgbox_bool(GtkWindow *parent, const char *msg)
+{
+    GtkWidget *dialog, *label, *image, *hbox;
+
+    /* Create a non-modal dialog with one OK button. */
+    dialog = gtk_dialog_new_with_buttons ("Question", parent,
+                                        GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+					("_Yes"),
+                                      	GTK_RESPONSE_ACCEPT,
+                                      	("_No"),
+                                      	GTK_RESPONSE_REJECT,
+                                      	NULL);
+
+    label = gtk_label_new (msg);
+    image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
+
+    hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 5);
+    gtk_container_set_border_width (GTK_CONTAINER (hbox), 10);
+    gtk_box_pack_start_defaults (GTK_BOX (hbox), image);
+    gtk_box_pack_start_defaults (GTK_BOX (hbox), label);
+
+    gtk_box_pack_start_defaults (GTK_BOX (gtk_dialog_get_content_area (GTK_DIALOG (dialog))), hbox);
+    //gtk_widget_show_all (dialog);
+
+	gint result = gtk_dialog_run (GTK_DIALOG (dialog));
+	switch (result)
+	{
+	    case GTK_RESPONSE_ACCEPT:
+       		gtk_widget_destroy (dialog);
+		return true;
+	       break;
+	    default:
+		gtk_widget_destroy (dialog);
+		return false;
+	       break;
+  	}
+
+    /* Call gtk_widget_destroy() when the dialog emits the response signal. */
+//    g_signal_connect (G_OBJECT (dialog), "response",
+  //                  G_CALLBACK (gtk_widget_destroy), NULL);
+}
+
 
 /* Copy the selected text to the clipboard and remove it from the buffer. */
 static void
