@@ -42,6 +42,7 @@
 #define ICONFILE "/usr/local/share/mport/icon.png"
 #define MPORT_LOCAL_PKG_PATH "/var/db/mport/downloads"
 
+GtkWidget *window;
 GtkWidget *search; /* textboxes */
 GtkWidget *tree;
 GtkWidget *installedTree;
@@ -128,10 +129,14 @@ static int update(mportInstance *, const char *);
 static int upgrade(mportInstance *);
 static int updateDown(mportInstance *, mportPackageMeta *);
 
+/* Callbacks */
+void mport_gtk_msg_cb(const char *msg);
+int mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def);
+
 int 
 main( int argc, char *argv[] )
 {
-	GtkWidget *window, *vbox, *authbox, *vauthbox;
+	GtkWidget *vbox, *authbox, *vauthbox;
 	GtkWidget *submit; // search button
 	GtkWidget *resetSearchButton;
 	GtkWidget *scrolled_win;
@@ -150,6 +155,13 @@ main( int argc, char *argv[] )
 		warnx("%s", mport_err_string());
 		exit(1);
 	}
+
+	/* Setup callbacks */
+	mport->msg_cb = &mport_gtk_msg_cb;
+/*        mport->progress_init_cb = &mport_default_progress_init_cb;
+        mport->progress_step_cb = &mport_default_progress_step_cb;
+        mport->progress_free_cb = &mport_default_progress_free_cb;
+        mport->confirm_cb = &mport_default_confirm_cb; */
 
         if (mport_index_load(mport) != MPORT_OK)
 		errx(4, "Unable to load updates index");
@@ -278,6 +290,41 @@ main( int argc, char *argv[] )
 	#endif
 }
 
+void 
+mport_gtk_msg_cb(const char *msg) {
+	msgbox(GTK_WINDOW(window), msg);
+}
+
+int 
+mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def)
+{
+  size_t len;
+  char *ans;
+ 
+  (void)fprintf(stderr, "%s (Y/N) [%s]: ", msg, def == 1 ? yes : no);
+ 
+  while (1) {
+    /* get answer, if just \n, then default. */
+    ans = fgetln(stdin, &len);
+
+    if (len == 1) {
+      /* user just hit return */
+      return def == 1 ? MPORT_OK : -1;
+    } 
+   
+    if (*ans == 'Y' || *ans == 'y')
+      return MPORT_OK;
+    if (*ans == 'N' || *ans == 'n')
+      return -1;
+   
+    (void)fprintf(stderr, "Please enter yes or no: ");
+  }
+ 
+  /* Not reached */
+  return MPORT_OK;
+}
+
+
 static void
 installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data) {
 	GtkTreeIter   iter;
@@ -305,11 +352,6 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
 					
 					strncpy(selectedInstalled, name, 255);
 					selectedInstalled[255] = '\0';
-
-					/*gtk_label_set_text(GTK_LABEL(detail.label), (*indexEntries)->comment);
-					gtk_label_set_text(GTK_LABEL(detail.labelVersion), (*indexEntries)->version);
-					gtk_label_set_text(GTK_LABEL(detail.labelName), (*indexEntries)->pkgname);
-					*/
 
 					break;
 				}
@@ -521,12 +563,12 @@ upgrade(mportInstance *mport) {
 	int updated = 0;
 
 	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
-		warnx("%s", mport_err_string());
+		msgbox(GTK_WINDOW(window),  mport_err_string());
 		return (1);
 	}
 
 	if (packs == NULL) {
-		warnx("No packages installed.\n");
+		msgbox(GTK_WINDOW(window),  "No packages installed.\n");
 		return (1);
 	}
 
@@ -607,7 +649,7 @@ update(mportInstance *mport, const char *packageName) {
 
 	if (!mport_verify_hash(path, (*indexEntry)->hash)) {
 		if (unlink(path) == 0)  /* remove file so we can try again */
-			fprintf(stderr, "Package fails hash verification and was removed. Please try again.\n");
+			msgbox(GTK_WINDOW(window),  "Package fails hash verification and was removed. Please try again.\n");
 		else
 			fprintf(stderr, "Package fails hash verification Please delete it manually at %s\n", path);
 		free(path);
@@ -615,7 +657,7 @@ update(mportInstance *mport, const char *packageName) {
 	}
 
 	if (mport_update_primative(mport, path) != MPORT_OK) {
-		fprintf(stderr, "%s\n", mport_err_string());
+		msgbox(GTK_WINDOW(window), mport_err_string());
 		free(path);
 		return mport_err_code();
 	}
@@ -716,7 +758,7 @@ installed_delete_button_clicked(GtkButton *button, GtkWidget *parent)
 	dispatch_group_async(grp, q, ^{
 #endif
 		if (selectedInstalled != NULL) {
-			result = delete(selectedInstalled);   
+			result = delete(selectedInstalled);
 			fprintf(stderr, "Delete returned %d", result);	   
 
 			/* reload search data after delete */
@@ -781,14 +823,14 @@ install_depends(mportInstance *mport, const char *packageName, const char *versi
         mport_index_depends_list(mport, packageName, version, &depends);
 
         if (mport_pkgmeta_search_master(mport, &packs, "pkg=%Q", packageName) != MPORT_OK) {
-                warnx("%s", mport_err_string());
+                msgbox(GTK_WINDOW(window), mport_err_string());
                 return mport_err_code();
         }
 
         if (packs == NULL && depends == NULL) {
                 /* Package is not installed and there are no dependencies */
                 if (mport_install(mport, packageName, version, NULL) != MPORT_OK) {
-                        warnx("%s", mport_err_string());
+                        msgbox(GTK_WINDOW(window), mport_err_string());
                         return mport_err_code();
                 }
         } else if (packs == NULL) {
@@ -798,7 +840,7 @@ install_depends(mportInstance *mport, const char *packageName, const char *versi
                         depends++;
                 }
                 if (mport_install(mport, packageName, version, NULL) != MPORT_OK) {
-                        warnx("%s", mport_err_string());
+                        msgbox(GTK_WINDOW(window), mport_err_string());
                         return mport_err_code();
                 }
                 mport_index_depends_free_vec(depends);
@@ -818,7 +860,7 @@ delete(const char *packageName) {
 	mportPackageMeta **packs;
 
  	if (mport_pkgmeta_search_master(mport, &packs, where, packageName) != MPORT_OK) {
-	    warnx("%s", mport_err_string());
+	    msgbox(GTK_WINDOW(window), mport_err_string());
 	    mport_instance_free(mport);
 	    exit(1);
 	  }
@@ -830,7 +872,7 @@ delete(const char *packageName) {
 
   while (*packs != NULL) {
     if (mport_delete_primative(mport, *packs, 0) != MPORT_OK) {
-      warnx("%s", mport_err_string());
+      msgbox(GTK_WINDOW(window), mport_err_string());
       mport_instance_free(mport);
       exit(1);
     }
@@ -1076,13 +1118,13 @@ populate_remote_index(GtkTreeStore *store)
 	mportPackageMeta **packs;
 
         if (mport_index_list(mport, &indexEntries) != MPORT_OK) {
-                warnx("%s", mport_err_string());
+                msgbox(GTK_WINDOW(window), mport_err_string());
                 mport_instance_free(mport);
                 exit(1);
         }
 
  	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
-    		warnx("%s", mport_err_string());
+    		msgbox(GTK_WINDOW(window), mport_err_string());
     		mport_instance_free(mport);
    		exit(1);
   	}
@@ -1128,7 +1170,7 @@ populate_installed_packages(GtkTreeStore *store)
 	mportPackageMeta **packs;
 
         if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
-                warnx("%s", mport_err_string());
+                msgbox(GTK_WINDOW(window), mport_err_string());
                 mport_instance_free(mport);
                 exit(1);
         }
@@ -1160,7 +1202,7 @@ populate_update_packages(GtkTreeStore *store)
 	mportPackageMeta **packs;
 	
 	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
-		warnx("%s", mport_err_string());
+		msgbox(GTK_WINDOW(window), mport_err_string());
 		mport_instance_free(mport);
 		exit(1);
 	}
