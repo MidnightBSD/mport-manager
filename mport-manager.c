@@ -159,10 +159,11 @@ main( int argc, char *argv[] )
 
 	/* Setup callbacks */
 	mport->msg_cb = &mport_gtk_msg_cb;
+	mport->confirm_cb = &mport_gtk_confirm_cb;
 /*        mport->progress_init_cb = &mport_default_progress_init_cb;
         mport->progress_step_cb = &mport_default_progress_step_cb;
         mport->progress_free_cb = &mport_default_progress_free_cb;
-        mport->confirm_cb = &mport_default_confirm_cb; */
+        */
 
         if (mport_index_load(mport) != MPORT_OK)
 		errx(4, "Unable to load updates index");
