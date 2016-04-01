@@ -32,6 +32,8 @@
 #include <err.h>
 #include <string.h>
 
+#include <X11/Xlib.h>
+
 #if defined(__MidnightBSD_version) && (__MidnightBSD_version > 8000)
 #define DISPATCH
 #include <dispatch/dispatch.h>
@@ -47,6 +49,7 @@ GtkWidget *search; /* textboxes */
 GtkWidget *tree;
 GtkWidget *installedTree;
 GtkWidget *updateTree;
+GtkWidget *progressBar;
 
 mportInstance *mport;
 
@@ -133,6 +136,9 @@ static int updateDown(mportInstance *, mportPackageMeta *);
 /* Callbacks */
 void mport_gtk_msg_cb(const char *msg);
 int mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def);
+void mport_gtk_progress_init_cb(const char *title);
+void mport_gtk_progress_step_cb(int current, int total, const char *msg);
+void mport_gtk_progress_free_cb(void);
 
 int 
 main( int argc, char *argv[] )
@@ -160,14 +166,14 @@ main( int argc, char *argv[] )
 	/* Setup callbacks */
 	mport->msg_cb = &mport_gtk_msg_cb;
 	mport->confirm_cb = &mport_gtk_confirm_cb;
-/*        mport->progress_init_cb = &mport_default_progress_init_cb;
-        mport->progress_step_cb = &mport_default_progress_step_cb;
-        mport->progress_free_cb = &mport_default_progress_free_cb;
-        */
+        mport->progress_init_cb = &mport_gtk_progress_init_cb;
+        mport->progress_step_cb = &mport_gtk_progress_step_cb;
+        mport->progress_free_cb = &mport_gtk_progress_free_cb;
 
         if (mport_index_load(mport) != MPORT_OK)
 		errx(4, "Unable to load updates index");
 
+	XInitThreads();
 	gtk_init( &argc, &argv );
 
 	// init window
@@ -203,6 +209,8 @@ main( int argc, char *argv[] )
 
 	stackSwitcher = gtk_stack_switcher_new();
 	stack = gtk_stack_new();
+	progressBar = gtk_progress_bar_new();
+	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(progressBar), TRUE);
 
 	search = gtk_entry_new();
 
@@ -273,6 +281,7 @@ main( int argc, char *argv[] )
 	create_menus(window, stackHolder, search);
 	gtk_box_pack_start( GTK_BOX (stackHolder), stackSwitcher, FALSE, TRUE, 0 );
 	gtk_box_pack_start( GTK_BOX (stackHolder), stack, TRUE, TRUE, 0 );
+	gtk_box_pack_start( GTK_BOX(stackHolder), progressBar, FALSE, TRUE, 8);
 
 	gtk_container_add( GTK_CONTAINER (window), stackHolder);
 	gtk_widget_show_all( window );
@@ -307,6 +316,40 @@ mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def)
 		return MPORT_OK;
 	else
 		return -1;
+}
+
+void 
+mport_gtk_progress_init_cb(const char *title) 
+{
+
+	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), title);
+}
+
+void 
+mport_gtk_progress_step_cb(int current, int total, const char *msg)
+{
+	gdouble percent;
+
+	if (current > total)
+		current = total;
+
+	percent = (gdouble)current / (gdouble)total;
+	fprintf(stderr, "percent %f\n", percent);
+
+	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), percent);
+	while (gtk_events_pending ())
+		gtk_main_iteration ();
+	//sleep(1);
+//	gtk_progress_bar_set_pulse_step(GTK_PROGRESS_BAR(progressBar), percent);
+
+	//gtk_progress_bar_pulse (GTK_PROGRESS_BAR(progressBar));
+}
+
+void 
+mport_gtk_progress_free_cb(void)
+{
+
+	//gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), 0.0);
 }
 
 
