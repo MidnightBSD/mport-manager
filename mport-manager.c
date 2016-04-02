@@ -506,7 +506,9 @@ create_detail_box(GtkWidget *parent) {
 	gtk_box_pack_start(GTK_BOX(licenseBox), detail.labelLicense, FALSE, TRUE, 0);
 
 	// setup right side
-	gtk_box_pack_start(GTK_BOX(rightBox), detail.label, FALSE, TRUE, 2);
+	gtk_box_set_homogeneous(GTK_BOX(rightBox), FALSE);
+	gtk_label_set_justify(GTK_LABEL(detail.label), GTK_JUSTIFY_LEFT);
+	gtk_box_pack_start(GTK_BOX(rightBox), detail.label, FALSE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(rightBox), licenseBox, FALSE, TRUE, 0);
 
 	// set up outer box
