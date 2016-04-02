@@ -23,6 +23,8 @@
  * SUCH DAMAGE.
  */
 
+#include <sys/param.h>
+
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
 
@@ -49,7 +51,7 @@ GtkWidget *search; /* textboxes */
 GtkWidget *tree;
 GtkWidget *installedTree;
 GtkWidget *updateTree;
-GtkWidget *progressBar;
+GtkWidget *progressBar = NULL;
 
 mportInstance *mport;
 
@@ -72,7 +74,7 @@ struct available_detail detail;
 /*
  * Installed Software Tab's selected name
  */
-char selectedInstalled[256];
+char selectedInstalled[256] = {'\0'};
 
 enum
 {
@@ -159,21 +161,6 @@ main( int argc, char *argv[] )
 #endif
 	mport = mport_instance_new();
 
-	if (mport_instance_init(mport, NULL) != MPORT_OK) {
-		warnx("%s", mport_err_string());
-		exit(1);
-	}
-
-	/* Setup callbacks */
-	mport->msg_cb = &mport_gtk_msg_cb;
-	mport->confirm_cb = &mport_gtk_confirm_cb;
-        mport->progress_init_cb = &mport_gtk_progress_init_cb;
-        mport->progress_step_cb = &mport_gtk_progress_step_cb;
-        mport->progress_free_cb = &mport_gtk_progress_free_cb;
-
-        if (mport_index_load(mport) != MPORT_OK)
-		errx(4, "Unable to load updates index");
-
 	XInitThreads();
 	gtk_init( &argc, &argv );
 
@@ -191,6 +178,25 @@ main( int argc, char *argv[] )
 	// setup destroy signal
 	g_signal_connect (G_OBJECT (window), "destroy",
                   G_CALLBACK (gtk_main_quit), NULL);
+
+	progressBar = gtk_progress_bar_new();
+	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(progressBar), TRUE);
+
+
+	if (mport_instance_init(mport, NULL) != MPORT_OK) {
+		warnx("%s", mport_err_string());
+		exit(1);
+	}
+
+	/* Setup callbacks */
+	mport->msg_cb = &mport_gtk_msg_cb;
+	mport->confirm_cb = &mport_gtk_confirm_cb;
+        mport->progress_init_cb = &mport_gtk_progress_init_cb;
+        mport->progress_step_cb = &mport_gtk_progress_step_cb;
+        mport->progress_free_cb = &mport_gtk_progress_free_cb;
+
+        if (mport_index_load(mport) != MPORT_OK)
+		errx(4, "Unable to load updates index");
 
 	// create search button
 	submit = gtk_button_new_with_mnemonic("_Search");
@@ -210,9 +216,6 @@ main( int argc, char *argv[] )
 
 	stackSwitcher = gtk_stack_switcher_new();
 	stack = gtk_stack_new();
-	progressBar = gtk_progress_bar_new();
-	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(progressBar), TRUE);
-
 	search = gtk_entry_new();
 
 	authbox = gtk_box_new( GTK_ORIENTATION_HORIZONTAL, 5 );
@@ -322,7 +325,8 @@ mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def)
 void 
 mport_gtk_progress_init_cb(const char *title) 
 {
-
+	if (progressBar == NULL)
+		return;
 	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), title);
 }
 
@@ -330,6 +334,9 @@ void
 mport_gtk_progress_step_cb(int current, int total, const char *msg)
 {
 	gdouble percent;
+
+	if (progressBar == NULL)
+		return;
 
 	if (current > total)
 		current = total;
@@ -344,12 +351,18 @@ mport_gtk_progress_step_cb(int current, int total, const char *msg)
 void 
 mport_gtk_progress_free_cb(void)
 {
+	if (progressBar == NULL)
+		return;
+
 	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), "Task Completed");
 }
 
 void
 reset_progress_bar(void) 
 {
+	if (progressBar == NULL)
+		return;
+
 	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), "");
 	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), 0.0);
 }
