@@ -1041,9 +1041,7 @@ setup_tree(void)
    gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
 
    renderer = gtk_cell_renderer_text_new ();
-   g_object_set (G_OBJECT (renderer),
-                 "foreground", "navy",
-                 NULL);
+//   g_object_set (G_OBJECT (renderer), "foreground", "navy", NULL);
 
    column = gtk_tree_view_column_new_with_attributes ("Version", renderer,
                                                       "text", VERSION_COLUMN,
