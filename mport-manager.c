@@ -65,6 +65,7 @@ struct available_detail {
 	GtkWidget *labelVersion;
 	GtkWidget *labelName;
 	GtkWidget *label; // comment
+	GtkWidget *labelLicense;
 	GtkWidget *installButton;
 };
 
@@ -444,6 +445,7 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 					gtk_label_set_text(GTK_LABEL(detail.label), (*indexEntries)->comment);
 					gtk_label_set_text(GTK_LABEL(detail.labelVersion), (*indexEntries)->version);
 					gtk_label_set_text(GTK_LABEL(detail.labelName), (*indexEntries)->pkgname);
+					gtk_label_set_text(GTK_LABEL(detail.labelLicense), (*indexEntries)->license);
 
 					break;
 				}
@@ -467,6 +469,8 @@ create_detail_box(GtkWidget *parent) {
 	GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 	GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 	GtkWidget *iconBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+	GtkWidget *rightBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+	GtkWidget *licenseBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 
 	// buttons
 	GtkWidget *buttonBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
@@ -486,17 +490,27 @@ create_detail_box(GtkWidget *parent) {
 	detail.label = gtk_label_new("");
 	detail.labelVersion = gtk_label_new("");
 	detail.labelName = gtk_label_new("");
+	detail.labelLicense = gtk_label_new("");
 	detail.image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
 
-	// set up label area
+	// setup  left label area
 	gtk_box_pack_start(GTK_BOX(iconBox), detail.image, FALSE, TRUE, 0);
-	gtk_box_pack_start(GTK_BOX(iconBox), detail.labelName, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(iconBox), detail.labelName, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(iconBox), detail.labelVersion, FALSE, TRUE, 0);
-	
+
+	// setup license
+	GtkWidget *licenseLabel = gtk_label_new("License: ");
+	gtk_box_pack_start(GTK_BOX(licenseBox), licenseLabel, TRUE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(licenseBox), detail.labelLicense, FALSE, TRUE, 0);
+
+	// setup right side
+	gtk_box_pack_start(GTK_BOX(rightBox), detail.label, FALSE, TRUE, 2);
+	gtk_box_pack_start(GTK_BOX(rightBox), licenseBox, FALSE, TRUE, 0);
+
 	// set up outer box
-	gtk_container_set_border_width (GTK_CONTAINER (hbox), 10);
+	gtk_container_set_border_width(GTK_CONTAINER (hbox), 10);
 	gtk_box_pack_start_defaults(GTK_BOX(hbox), iconBox);
-	gtk_box_pack_start_defaults(GTK_BOX(hbox), detail.label);
+	gtk_box_pack_start_defaults(GTK_BOX(hbox), rightBox);
 	
 	// put our hbox for detail info into the vbox
 	gtk_box_pack_start_defaults(GTK_BOX(vbox), hbox);
