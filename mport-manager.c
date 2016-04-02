@@ -494,13 +494,15 @@ create_detail_box(GtkWidget *parent) {
 	detail.image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
 
 	// setup  left label area
+	gtk_box_set_homogeneous(GTK_BOX(iconBox), FALSE);
 	gtk_box_pack_start(GTK_BOX(iconBox), detail.image, FALSE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(iconBox), detail.labelName, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(iconBox), detail.labelVersion, FALSE, TRUE, 0);
 
 	// setup license
+	gtk_box_set_homogeneous(GTK_BOX(licenseBox), FALSE);
 	GtkWidget *licenseLabel = gtk_label_new("License: ");
-	gtk_box_pack_start(GTK_BOX(licenseBox), licenseLabel, TRUE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(licenseBox), licenseLabel, FALSE, FALSE, 2);
 	gtk_box_pack_start(GTK_BOX(licenseBox), detail.labelLicense, FALSE, TRUE, 0);
 
 	// setup right side
