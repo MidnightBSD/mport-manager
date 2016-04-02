@@ -66,7 +66,6 @@ struct available_detail {
 	GtkWidget *labelName;
 	GtkWidget *label; // comment
 	GtkWidget *installButton;
-	GtkWidget *deleteButton;
 };
 
 struct available_detail detail;
@@ -80,7 +79,6 @@ enum
 {
 	TITLE_COLUMN,
 	VERSION_COLUMN,
-	INSTALLED_COLUMN,
 	N_COLUMNS
 };
 
@@ -479,13 +477,6 @@ create_detail_box(GtkWidget *parent) {
                     G_CALLBACK (install_button_clicked),
                     (gpointer) parent);
 	gtk_box_pack_start_defaults(GTK_BOX(buttonBox), detail.installButton);
-
-	// create remove button and wire it up
-	detail.deleteButton = gtk_button_new_with_mnemonic("_Remove Application");
-	g_signal_connect (G_OBJECT (detail.deleteButton), "clicked",
-                    G_CALLBACK (delete_button_clicked),
-                    (gpointer) parent);
-	gtk_box_pack_start_defaults(GTK_BOX(buttonBox), detail.deleteButton);
 	
 	// setup header bar
 	gtk_header_bar_set_title(GTK_HEADER_BAR(headerBar), "Detail");	
@@ -1060,13 +1051,6 @@ setup_tree(void)
 
    gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
 
-   renderer = gtk_cell_renderer_toggle_new ();
-   column = gtk_tree_view_column_new_with_attributes ("Installed",
-                                                      renderer,
-                                                      "active", INSTALLED_COLUMN,
-                                                      NULL);
-   gtk_tree_view_append_column (GTK_TREE_VIEW (tree), column);
-
 	// TOOD: FOO signal
 	g_signal_connect (G_OBJECT(tree), "row-activated",
                     G_CALLBACK (available_row_click_handler),
@@ -1099,9 +1083,7 @@ create_installed_tree(void)
 	gtk_tree_view_append_column(GTK_TREE_VIEW(installedTree), column);
 
 	renderer = gtk_cell_renderer_text_new();
-	g_object_set (G_OBJECT (renderer),
-                 "foreground", "red",
-                 NULL);
+	// g_object_set (G_OBJECT (renderer), "foreground", "red", NULL);
 
 	column = gtk_tree_view_column_new_with_attributes ("Version", renderer,
                                                       "text", INST_VERSION_COLUMN,
@@ -1157,11 +1139,9 @@ create_update_tree(void)
                                                       NULL);
    gtk_tree_view_append_column (GTK_TREE_VIEW (updateTree), column);
 
-   /* NEW VERSION */
+	/* NEW VERSION */
 	renderer = gtk_cell_renderer_text_new ();
-   g_object_set (G_OBJECT (renderer),
-                 "foreground", "red",
-                 NULL);
+	// g_object_set (G_OBJECT (renderer), "foreground", "red", NULL);
    column = gtk_tree_view_column_new_with_attributes ("New Version", renderer,
                                                       "text", UPD_NEW_VERSION_COLUMN,
                                                       NULL);
@@ -1193,7 +1173,6 @@ search_remote_index(GtkTreeStore *store, const char *query)
 			gtk_tree_store_set(store, &iter,
         	            TITLE_COLUMN, (*packs)->pkgname,
         	            VERSION_COLUMN, (*packs)->version,
-        	            INSTALLED_COLUMN, TRUE,
        		            -1);
 		
 	//	});
@@ -1226,9 +1205,8 @@ populate_remote_index(GtkTreeStore *store)
 		dispatch_group_async(grp, q, ^{
 #endif
 			GtkTreeIter   iter;
-			gtk_tree_store_append (store, &iter, NULL);
-
 			gboolean installed = FALSE;
+
  			mportPackageMeta **p2 = packs;
   			while (*p2 != NULL) {
 				if ( (strcmp( (*indexEntries)->pkgname, (*p2)->name) == 0) && 
@@ -1239,11 +1217,15 @@ populate_remote_index(GtkTreeStore *store)
 		
 				p2++;
 			}
+	
+			if (installed)
+				return;
+
+			gtk_tree_store_append (store, &iter, NULL);
 
 			gtk_tree_store_set (store, &iter,
         	            TITLE_COLUMN, (*indexEntries)->pkgname,
         	            VERSION_COLUMN, (*indexEntries)->version,
-        	            INSTALLED_COLUMN, installed,
        		            -1);
 #if defined(DISPATCH)
 		});
