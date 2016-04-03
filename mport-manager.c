@@ -406,7 +406,7 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
 		}
 
 		// TODO: for debug
-		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
+//		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
 
 
 		g_free(name);
@@ -455,7 +455,7 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 		}
 
 		// TODO: for debug
-		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
+//		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
 
 		g_free(name);
 		g_free(version);
