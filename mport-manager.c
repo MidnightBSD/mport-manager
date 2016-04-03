@@ -405,9 +405,9 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
 			mport_index_entry_free_vec(indexEntries);
 		}
 
-		// TODO: for debug
-//		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
-
+#if defined(DEBUG)
+		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
+#endif
 
 		g_free(name);
 		g_free(version);
@@ -454,8 +454,9 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 			mport_index_entry_free_vec(indexEntries);
 		}
 
-		// TODO: for debug
-//		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
+#if defined(DEBUG)
+		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
+#endif
 
 		g_free(name);
 		g_free(version);
@@ -1165,37 +1166,30 @@ create_update_tree(void)
 }
 
 
-static void 
-search_remote_index(GtkTreeStore *store, const char *query) 
-{
-        mportIndexEntry **packs;
+static void
+search_remote_index(GtkTreeStore *store, const char *query) {
+	mportIndexEntry **packs;
 
 	if (query == NULL || query[0] == '\0') {
 		populate_remote_index(store);
 		return;
 	}
 
-        if (mport_index_search(mport, &packs, "pkg glob %Q or comment glob %Q", query, query) != MPORT_OK) {
-                warnx("%s", mport_err_string());
-                mport_instance_free(mport);
-                exit(1);
-        }
-
-	while (*packs != NULL) {
-	//	dispatch_group_async(grp, q, ^{
-
-			GtkTreeIter   iter;
-			gtk_tree_store_append(store, &iter, NULL);
-			gtk_tree_store_set(store, &iter,
-        	            TITLE_COLUMN, (*packs)->pkgname,
-        	            VERSION_COLUMN, (*packs)->version,
-       		            -1);
-		
-	//	});
-		packs++;
+	if (mport_index_search(mport, &packs, "pkg glob %Q or comment glob %Q", query, query) != MPORT_OK) {
+		warnx("%s", mport_err_string());
+		mport_instance_free(mport);
+		exit(1);
 	}
 
-//	dispatch_group_wait(grp, DISPATCH_TIME_FOREVER);
+	while (*packs != NULL) {
+		GtkTreeIter iter;
+		gtk_tree_store_append(store, &iter, NULL);
+		gtk_tree_store_set(store, &iter,
+		                   TITLE_COLUMN, (*packs)->pkgname,
+		                   VERSION_COLUMN, (*packs)->version,
+		                   -1);
+		packs++;
+	}
 }
 
 static void 
