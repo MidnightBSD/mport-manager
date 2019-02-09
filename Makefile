@@ -5,7 +5,7 @@ CFLAGS= -I/usr/include -I/usr/local/include -Wall -pedantic -std=c99 -O2 -fblock
 LDFLAGS= -L/usr/lib -L/usr/local/lib \
 	-lmd -larchive -lbz2 -llzma -lz -lfetch -lsqlite3 -lmport \
 	-lpthread -ldispatch -lBlocksRuntime \
-	`pkg-config --libs gtk+-3.0`
+	`pkg-config --libs gtk+-3.0` -lX11
 PREFIX=	/usr/local
 DATADIR=/usr/local/share/mport
 
