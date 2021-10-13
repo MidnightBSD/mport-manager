@@ -25,6 +25,9 @@ stable rather than the ISO for the release.
 As libdispatch was not complied with blocks support in 0.7,
 ifdef's with DISPATCH are guarding those sections.
 
+## Breaking Changes
+Currently this only works with libmport 2.1.5 and lower. There is a public API change around that release. 
+
 
 ## License
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FMidnightBSD%2Fmport-manager.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FMidnightBSD%2Fmport-manager?ref=badge_large)
