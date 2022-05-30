@@ -129,7 +129,6 @@ void reset_progress_bar(void);
 static int delete(const char *);
 static int indexCheck(mportInstance *, mportPackageMeta *);
 static int install(mportInstance *, const char *);
-static int install_depends(mportInstance *, const char *, const char *);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
 static int update(mportInstance *, const char *);
 static int upgrade(mportInstance *);
@@ -875,54 +874,14 @@ install(mportInstance *mport, const char *packageName)
 		}
 	}
 
-	resultCode = install_depends(mport, (*indexEntry)->pkgname, (*indexEntry)->version);
+	resultCode = mport_install_depends(mport, (*indexEntry)->pkgname, (*indexEntry)->version, MPORT_EXPLICIT);
 
 	mport_index_entry_free_vec(indexEntry);
 
 	return (resultCode);
 }
 
-static int
-install_depends(mportInstance *mport, const char *packageName, const char *version)
-{
-	mportPackageMeta **packs;
-	mportDependsEntry **depends;
-
-	if (packageName == NULL || version == NULL)
-		return (1);
-
-	mport_index_depends_list(mport, packageName, version, &depends);
-
-	if (mport_pkgmeta_search_master(mport, &packs, "pkg=%Q", packageName) != MPORT_OK) {
-		msgbox(GTK_WINDOW(window), mport_err_string());
-		return mport_err_code();
-	}
-
-	if (packs == NULL && depends == NULL) {
-		/* Package is not installed and there are no dependencies */
-		if (mport_install(mport, packageName, version, NULL) != MPORT_OK) {
-			msgbox(GTK_WINDOW(window), mport_err_string());
-			return mport_err_code();
-		}
-	} else if (packs == NULL) {
-		/* Package is not installed */
-		while (*depends != NULL) {
-			install_depends(mport, (*depends)->d_pkgname, (*depends)->d_version);
-			depends++;
-		}
-		if (mport_install(mport, packageName, version, NULL) != MPORT_OK) {
-			msgbox(GTK_WINDOW(window), mport_err_string());
-			return mport_err_code();
-		}
-		mport_index_depends_free_vec(depends);
-	} else {
-		/* already installed */
-		mport_pkgmeta_vec_free(packs);
-		mport_index_depends_free_vec(depends);
-	}
-
-	return (0);
-}
+// 		msgbox(GTK_WINDOW(window), mport_err_string());
 
 
 static int
@@ -1297,7 +1256,7 @@ populate_update_packages(GtkTreeStore *store)
 		exit(1);
 	}
 
-	char *os_release = mport_get_osrelease();
+	char *os_release = mport_get_osrelease(mport);
 
 	while (*packs != NULL) {
 #if defined(DISPATCH)
