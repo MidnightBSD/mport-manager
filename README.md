@@ -17,16 +17,16 @@ sudo make install
 To run:
 sudo mport-manager
 
+## Breaking Changes
+0.2.0 requires libmport 2.2.0 or higher
 
+0.1.5 Currently this only works with libmport 2.1.5 and lower. There is a public API change around that release. 
 NOTE:
 0.7 is partially supported as long as you're runing a recent
 stable rather than the ISO for the release.
 
 As libdispatch was not complied with blocks support in 0.7,
 ifdef's with DISPATCH are guarding those sections.
-
-## Breaking Changes
-Currently this only works with libmport 2.1.5 and lower. There is a public API change around that release. 
 
 
 ## License
