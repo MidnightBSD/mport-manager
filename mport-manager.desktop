@@ -1,6 +1,9 @@
 [Desktop Entry]
-Name=MidnightBSD Package Manager
-Exec=mport-manager
-Icon=mport-manager.png
+Name=mport Package Manager
+Comment=MidnightBSD Package Manager
+Exec=gksudo mport-manager
+Icon=icon
+Terminal=false
 Type=Application
-Categories=GTK;Settings;Utility;System;
+StartupNotify=true
+Categories=System;Utility
