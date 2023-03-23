@@ -165,7 +165,7 @@ main(int argc, char *argv[])
 	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(progressBar), TRUE);
 
 
-	if (mport_instance_init(mport, NULL) != MPORT_OK) {
+	if (mport_instance_init(mport, NULL, NULL, false) != MPORT_OK) {
 		warnx("%s", mport_err_string());
 		exit(1);
 	}
