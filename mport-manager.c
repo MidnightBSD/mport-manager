@@ -58,6 +58,7 @@ struct available_detail {
 	GtkWidget *labelName;
 	GtkWidget *label; // comment
 	GtkWidget *labelLicense;
+	GtkWidget *labelType;
 	GtkWidget *installButton;
 };
 
@@ -444,6 +445,7 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 					gtk_label_set_text(GTK_LABEL(detail.labelVersion), (*indexEntries)->version);
 					gtk_label_set_text(GTK_LABEL(detail.labelName), (*indexEntries)->pkgname);
 					gtk_label_set_text(GTK_LABEL(detail.labelLicense), (*indexEntries)->license);
+					gtk_label_set_text(GTK_LABEL(detail.labelType), (*indexEntries)->type == MPORT_TYPE_SYSTEM ? "System" : "Application");
 
 					break;
 				}
@@ -491,6 +493,7 @@ create_detail_box(GtkWidget *parent)
 	detail.labelVersion = gtk_label_new("");
 	detail.labelName = gtk_label_new("");
 	detail.labelLicense = gtk_label_new("");
+	detail.labelType = gtk_label_new("");
 	detail.image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
 	gtk_image_set_pixel_size(GTK_IMAGE(detail.image), 48); 
 
@@ -505,6 +508,12 @@ create_detail_box(GtkWidget *parent)
 	GtkWidget *licenseLabel = gtk_label_new("License: ");
 	gtk_box_pack_start(GTK_BOX(licenseBox), licenseLabel, FALSE, FALSE, 2);
 	gtk_box_pack_start(GTK_BOX(licenseBox), detail.labelLicense, FALSE, TRUE, 0);
+
+	// setup type
+	gtk_box_set_homogeneous(GTK_BOX(licenseBox), FALSE);
+	GtkWidget *typeLabel = gtk_label_new("Type: ");
+	gtk_box_pack_start(GTK_BOX(licenseBox), typeLabel, FALSE, FALSE, 2);
+	gtk_box_pack_start(GTK_BOX(licenseBox), detail.labelType, FALSE, TRUE, 0);
 
 	// setup right side
 	gtk_box_set_homogeneous(GTK_BOX(rightBox), FALSE);
@@ -769,7 +778,7 @@ install(mportInstance *mport, const char *packageName)
 	}
 
 	// Perform the actual installation
-	resultCode = mport_install_primative(mport, *indexEntry, MPORT_LOCAL_PKG_PATH);
+	resultCode = mport_install(mport, (*indexEntry)->pkgname, (*indexEntry)->version, NULL, MPORT_EXPLICT);
 
 	if (resultCode != MPORT_OK)
 	{
@@ -802,7 +811,8 @@ static int
 delete(const char *packageName)
 {
     const char *where = "LOWER(pkg)=LOWER(%Q)";
-    mportPackageMeta **packs;
+	mportPackageMeta **packs = NULL;
+	mportPackageMeta **packs_orig = NULL;
 
     if (mport_pkgmeta_search_master(mport, &packs, where, packageName) != MPORT_OK) {
         msgbox(GTK_WINDOW(window), mport_err_string());
@@ -828,13 +838,18 @@ delete(const char *packageName)
         return MPORT_ERR_WARN;
     }
 
+	packs = packs_orig;
     while (*packs != NULL) {
-        if (mport_delete_primative(mport, *packs, 0) != MPORT_OK) {
+		(*packs)->action = MPORT_ACTION_DELETE;
+        if (mport_delete_primative(mport, *packs, mport->force) != MPORT_OK) {
             msgbox(GTK_WINDOW(window), mport_err_string());
+			mport_pkgmeta_vec_free(packs_orig);
             return MPORT_ERR_FATAL;
         }
         packs++;
     }
+
+	mport_pkgmeta_vec_free(packs_orig);
     return MPORT_OK;
 }
 
