@@ -603,7 +603,7 @@ lookupIndex(mportInstance *mport, const char *packageName)
 	mportIndexEntry **indexEntries;
 
 	if (mport_index_lookup_pkgname(mport, packageName, &indexEntries) != MPORT_OK) {
-		fprintf(stderr,  "Error looking up package name %s: %d %s\n",
+		fprintf(stderr, "Error looking up package name %s: %d %s\n",
 		        packageName, mport_err_code(), mport_err_string());
 		errx(mport_err_code(), "%s", mport_err_string());
 	}
