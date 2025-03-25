@@ -583,7 +583,7 @@ indexCheck(mportInstance *mport, mportPackageMeta *pack)
 	int ret = 0;
 
 	if (mport_index_lookup_pkgname(mport, pack->name, &indexEntries) != MPORT_OK) {
-		char *msg = asprintf("Error looking up package name %s: %d %s\n", name, mport_err_code(), mport_err_string());
+		char *msg = asprintf("Error looking up package name %s: %d %s\n", pack->name, mport_err_code(), mport_err_string());
 		(mport->msg_cb)(msg);
 		free(msg);
 		return (0);
