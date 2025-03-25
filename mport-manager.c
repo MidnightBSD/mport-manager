@@ -142,6 +142,9 @@ main(int argc, char *argv[])
 	GdkPixbuf *icon;
 
 	mport = mport_instance_new();
+	if (mport == NULL) {
+		errx(EXIT_FAILURE, "mport_instance_new() failed");
+	}
 
 	XInitThreads();
 	gtk_init(&argc, &argv);
@@ -165,9 +168,8 @@ main(int argc, char *argv[])
 	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(progressBar), TRUE);
 
 
-	if (mport_instance_init(mport, NULL, NULL, false, false) != MPORT_OK) {
-		warnx("%s", mport_err_string());
-		exit(1);
+	if (mport_instance_init(mport, NULL, NULL, false, MPORT_VNORMAL) != MPORT_OK) {
+		errx(1, "%s", mport_err_string());
 	}
 
 	/* Setup callbacks */
@@ -177,8 +179,10 @@ main(int argc, char *argv[])
 	mport->progress_step_cb = &mport_gtk_progress_step_cb;
 	mport->progress_free_cb = &mport_gtk_progress_free_cb;
 
-	if (mport_index_load(mport) != MPORT_OK)
+	if (mport_index_load(mport) != MPORT_OK) {
+		mport_instance_free(mport);
 		errx(4, "Unable to load updates index");
+	}
 
 	// create search button
 	submit = gtk_button_new_with_mnemonic("_Search");
@@ -363,8 +367,7 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
 		gtk_tree_model_get(model, &iter, INST_VERSION_COLUMN, &version, -1);
 
 		if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
-			fprintf(stderr, "Error Looking up package name %s: %d %s\n", name, mport_err_code(), mport_err_string());
-			// TODO: gui dialog for error?
+			mport_call_msg_cb(mport, "Error Looking up package name %s: %d %s\n", name, mport_err_code(), mport_err_string());
 			return;
 		}
 
@@ -411,8 +414,7 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 		gtk_tree_model_get(model, &iter, VERSION_COLUMN, &version, -1);
 
 		if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
-			fprintf(stderr, "Error Looking up package name %s: %d %s\n", name, mport_err_code(), mport_err_string());
-			// TODO: gui dialog for error?
+			mport_call_msg_cb(mport, "Error Looking up package name %s: %d %s\n", name, mport_err_code(), mport_err_string());
 			return;
 		}
 
@@ -571,7 +573,7 @@ indexCheck(mportInstance *mport, mportPackageMeta *pack)
 	int ret = 0;
 
 	if (mport_index_lookup_pkgname(mport, pack->name, &indexEntries) != MPORT_OK) {
-		fprintf(stderr, "Error Looking up package name %s: %d %s\n", pack->name, mport_err_code(), mport_err_string());
+		mport_call_msg_cb(mport,  "Error Looking up package name %s: %d %s\n", pack->name, mport_err_code(), mport_err_string());
 		return (0);
 	}
 
@@ -643,7 +645,7 @@ install_button_clicked(GtkButton *button, GtkWidget *parent)
 		return;
 	}
 	resultCode = install(mport, c);
-	fprintf(stderr, "Install returned %d", resultCode);
+	fprintf(stderr, "Install returned %d\n", resultCode);
 
 	/* reload search data after install */
 	do_search();
@@ -742,8 +744,8 @@ delete(const char *packageName)
 	}
 
 	if (packs == NULL) {
-		warnx("No packages installed matching '%s'", packageName);
-		exit(3);
+		mport_instance_free(mport);
+		errx(3, "No packages installed matching '%s'", packageName);
 	}
 
 	while (*packs != NULL) {
