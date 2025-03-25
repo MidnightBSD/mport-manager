@@ -710,7 +710,7 @@ install(mportInstance *mport, const char *packageName)
 {
 	mportIndexEntry **indexEntry;
 	mportIndexEntry **i2;
-	int resultCode;
+	int resultCode = MPORT_OK;
 	int item;
 	int choice;
 
