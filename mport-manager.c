@@ -96,7 +96,6 @@ static void button_clicked(GtkButton *button, GtkWindow *parent);
 static void reset_search_button_clicked(GtkButton *button, GtkWindow *parent);
 static void update_button_clicked(GtkButton *button, GtkWindow *parent);
 static void install_button_clicked(GtkButton *button, GtkWidget *parent);
-static void delete_button_clicked(GtkButton *button, GtkWidget *parent);
 static void installed_delete_button_clicked(GtkButton *button, GtkWidget *parent);
 static void msgbox(GtkWindow *parent, const char * msg);
 static bool msgbox_bool(GtkWindow *parent, const char *msg);
@@ -110,7 +109,6 @@ static void populate_installed_packages(GtkTreeStore *);
 static void populate_update_packages(GtkTreeStore *); 
 static void populate_remote_index(GtkTreeStore *store);
 static void search_remote_index(GtkTreeStore *store, const char *query);
-static void gtk_box_pack_start_defaults(GtkBox *, GtkWidget *);
 static void create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search);
 static void create_detail_box(GtkWidget *parent);
 static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
@@ -172,6 +170,9 @@ main(int argc, char *argv[])
 	progressBar = gtk_progress_bar_new();
 	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(progressBar), TRUE);
 
+#if defined(DEBUG)
+	g_print ("Initializing mport instance");
+#endif
 
 	if (mport_instance_init(mport, NULL, NULL, false, MPORT_VNORMAL) != MPORT_OK) {
 		errx(1, "%s", mport_err_string());
@@ -187,7 +188,14 @@ main(int argc, char *argv[])
 
 	if (mport_index_load(mport) != MPORT_OK) {
 		mport_instance_free(mport);
-		errx(4, "Unable to load updates index");
+		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+		GTK_DIALOG_DESTROY_WITH_PARENT,
+		GTK_MESSAGE_ERROR,
+		GTK_BUTTONS_CLOSE,
+		"Unable to load updates index");
+		gtk_dialog_run(GTK_DIALOG(dialog));
+		gtk_widget_destroy(dialog);
+		gtk_main_quit();
 	}
 
 	// create search button
@@ -211,12 +219,12 @@ main(int argc, char *argv[])
 	search = gtk_entry_new();
 
 	authbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-	gtk_box_pack_start_defaults(GTK_BOX(authbox), search);
+	gtk_box_pack_start(GTK_BOX(authbox), search, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(authbox), submit, FALSE, TRUE, 3);
 	gtk_box_pack_start(GTK_BOX(authbox), resetSearchButton, FALSE, TRUE, 3);
 
 	vauthbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-	gtk_box_pack_start_defaults(GTK_BOX(vauthbox), authbox);
+	gtk_box_pack_start(GTK_BOX(vauthbox), authbox, TRUE, TRUE, 0);
 
 	/* Setup the final box for layout in the window */
 	vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
@@ -474,18 +482,19 @@ create_detail_box(GtkWidget *parent)
 	g_signal_connect(G_OBJECT(detail.installButton), "clicked",
 	                 G_CALLBACK(install_button_clicked),
 	                 (gpointer) parent);
-	gtk_box_pack_start_defaults(GTK_BOX(buttonBox), detail.installButton);
+					 gtk_box_pack_start(GTK_BOX(buttonBox), detail.installButton, TRUE, TRUE, 0);
 
 	// setup header bar
 	gtk_header_bar_set_title(GTK_HEADER_BAR(headerBar), "Detail");
-	gtk_box_pack_start_defaults(GTK_BOX(vbox), headerBar);
+	gtk_box_pack_start(GTK_BOX(vbox), headerBar, TRUE, TRUE, 0);
 
 	// set up placeholders for detail view
 	detail.label = gtk_label_new("");
 	detail.labelVersion = gtk_label_new("");
 	detail.labelName = gtk_label_new("");
 	detail.labelLicense = gtk_label_new("");
-	detail.image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
+	detail.image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_LARGE);
+	gtk_image_set_pixel_size(GTK_IMAGE(detail.image), 48); 
 
 	// setup  left label area
 	gtk_box_set_homogeneous(GTK_BOX(iconBox), FALSE);
@@ -507,12 +516,12 @@ create_detail_box(GtkWidget *parent)
 
 	// set up outer box
 	gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
-	gtk_box_pack_start_defaults(GTK_BOX(hbox), iconBox);
-	gtk_box_pack_start_defaults(GTK_BOX(hbox), rightBox);
+	gtk_box_pack_start(GTK_BOX(hbox), iconBox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(hbox), rightBox, TRUE, TRUE, 0);
 
 	// put our hbox for detail info into the vbox
-	gtk_box_pack_start_defaults(GTK_BOX(vbox), hbox);
-	gtk_box_pack_start_defaults(GTK_BOX(vbox), buttonBox);
+	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), buttonBox, TRUE, TRUE, 0);
 
 	// add to the parent container.
 	gtk_container_add(GTK_CONTAINER(parent), vbox);
@@ -559,17 +568,6 @@ create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search)
 	gtk_container_add(GTK_CONTAINER(parent), menuBar);
 }
 
-/*
- * Compatibility method for gtk2 to gtk3 conversion
- */
-static void
-gtk_box_pack_start_defaults(GtkBox *box, GtkWidget *widget)
-{
-
-	gtk_box_pack_start(box, widget, TRUE, TRUE, 0);
-}
-
-
 static void
 update_button_clicked(GtkButton *button, GtkWindow *parent)
 {
@@ -586,7 +584,7 @@ indexCheck(mportInstance *mport, mportPackageMeta *pack)
 
 	if (mport_index_lookup_pkgname(mport, pack->name, &indexEntries) != MPORT_OK) {
 		char *msg;
-		asprintf(&msg,("Error looking up package name %s: %s\n", pack->name, mport_err_string());
+		asprintf(&msg,"Error looking up package name %s: %s\n", pack->name, mport_err_string());
 		(mport->msg_cb)(msg);
 		free(msg);
 		return (0);
@@ -612,9 +610,17 @@ lookupIndex(mportInstance *mport, const char *packageName)
 	mportIndexEntry **indexEntries;
 
 	if (mport_index_lookup_pkgname(mport, packageName, &indexEntries) != MPORT_OK) {
-		fprintf(stderr, "Error looking up package name %s: %d %s\n",
+		g_print("Error looking up package name %s: %d %s\n",
 		        packageName, mport_err_code(), mport_err_string());
-		errx(mport_err_code(), "%s", mport_err_string());
+
+		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+		GTK_DIALOG_DESTROY_WITH_PARENT,
+		GTK_MESSAGE_ERROR,
+		GTK_BUTTONS_CLOSE,
+		mport_err_string());
+		gtk_dialog_run(GTK_DIALOG(dialog));
+		gtk_widget_destroy(dialog);
+		gtk_main_quit();
 	}
 
 	return (indexEntries);
@@ -660,22 +666,9 @@ install_button_clicked(GtkButton *button, GtkWidget *parent)
 		return;
 	}
 	resultCode = install(mport, c);
-	fprintf(stderr, "Install returned %d\n", resultCode);
+	g_print("Install returned %d\n", resultCode);
 
 	/* reload search data after install */
-	do_search();
-}
-
-static void
-delete_button_clicked(GtkButton *button, GtkWidget *parent)
-{
-	int result = 0;
-
-	const gchar *c = gtk_label_get_text(GTK_LABEL(detail.labelName));
-	result = delete(c);
-	fprintf(stderr, "Delete returned %d", result);
-
-	/* reload search data after delete */
 	do_search();
 }
 
@@ -684,9 +677,9 @@ installed_delete_button_clicked(GtkButton *button, GtkWidget *parent)
 {
 	int result = 0;
 
-	if (selectedInstalled != NULL) {
+	if (selectedInstalled[0] != '\0') {
 		result = delete(selectedInstalled);
-		fprintf(stderr, "Delete returned %d", result);
+		g_print("Delete returned %d", result);
 
 		/* reload search data after delete */
 		reload_installed();
@@ -714,64 +707,112 @@ install(mportInstance *mport, const char *packageName)
 
 	indexEntry = lookupIndex(mport, packageName);
 	if (indexEntry == NULL || *indexEntry == NULL)
-		errx(4, "Package %s not found in the index.", packageName);
+	{
+		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+												   GTK_DIALOG_DESTROY_WITH_PARENT,
+												   GTK_MESSAGE_ERROR,
+												   GTK_BUTTONS_CLOSE,
+												   "Package %s not found in the index.", packageName);
+		gtk_dialog_run(GTK_DIALOG(dialog));
+		gtk_widget_destroy(dialog);
+		return MPORT_ERR_WARN;
+	}
 
-	if (indexEntry[1] != NULL) {
-		printf("Multiple packages found. Please select one:\n");
+	if (indexEntry[1] != NULL)
+	{
+		GtkWidget *dialog;
+		GtkWidget *content_area;
+		GtkWidget *combo_box;
+		gint result;
+		int choice = 0;
+
+		dialog = gtk_dialog_new_with_buttons("Select Package",
+			GTK_WINDOW(window),
+			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+			NULL, NULL);  // No buttons yet
+
+		gtk_dialog_add_button(GTK_DIALOG(dialog), "_OK", GTK_RESPONSE_ACCEPT);
+		gtk_dialog_add_button(GTK_DIALOG(dialog), "_Cancel", GTK_RESPONSE_CANCEL);
+
+		content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+		combo_box = gtk_combo_box_text_new();
+
 		i2 = indexEntry;
 		item = 0;
-		while (*i2 != NULL) {
-			printf("%d. %s-%s\n", item, (*i2)->pkgname,
-			       (*i2)->version);
+		while (*i2 != NULL)
+		{
+			char *package_info;
+			asprintf(&package_info, "%s-%s", (*i2)->pkgname, (*i2)->version);
+			gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo_box), package_info);
+			free(package_info);
 			item++;
 			i2++;
 		}
-		while (scanf("%d", &choice) < 1 || choice > item || choice < 0) {
-			fprintf(stderr, "Please select an entry 0 - %d\n", item - 1);
-		}
-		item = 0;
-		while (indexEntry != NULL) {
-			if (item == choice)
-				break;
-			item++;
-			indexEntry++;
-		}
-	}
 
-	resultCode = mport_install_depends(mport, (*indexEntry)->pkgname, (*indexEntry)->version, MPORT_EXPLICIT);
+		gtk_combo_box_set_active(GTK_COMBO_BOX(combo_box), 0);
+		gtk_container_add(GTK_CONTAINER(content_area), combo_box);
+		gtk_widget_show_all(dialog);
+
+		result = gtk_dialog_run(GTK_DIALOG(dialog));
+		if (result == GTK_RESPONSE_ACCEPT)
+		{
+			choice = gtk_combo_box_get_active(GTK_COMBO_BOX(combo_box));
+		}
+		else
+		{
+			gtk_widget_destroy(dialog);
+			return MPORT_ERR_CANCEL; // User cancelled the operation
+		}
+
+		gtk_widget_destroy(dialog);
+
+		// Set indexEntry to the chosen package
+		indexEntry += choice;
+	}
 
 	mport_index_entry_free_vec(indexEntry);
 
 	return (resultCode);
 }
 
-
 static int
 delete(const char *packageName)
 {
-	const char *where = "LOWER(pkg)=LOWER(%Q)";
-	mportPackageMeta **packs;
+    const char *where = "LOWER(pkg)=LOWER(%Q)";
+    mportPackageMeta **packs;
 
-	if (mport_pkgmeta_search_master(mport, &packs, where, packageName) != MPORT_OK) {
-		msgbox(GTK_WINDOW(window), mport_err_string());
-		mport_instance_free(mport);
-		exit(1);
-	}
+    if (mport_pkgmeta_search_master(mport, &packs, where, packageName) != MPORT_OK) {
+        msgbox(GTK_WINDOW(window), mport_err_string());
+        return MPORT_ERR_FATAL;
+    }
 
-	if (packs == NULL) {
-		mport_instance_free(mport);
-		errx(3, "No packages installed matching '%s'", packageName);
-	}
+    if (packs == NULL) {
+        GtkWidget *dialog;
+        gchar *message;
 
-	while (*packs != NULL) {
-		if (mport_delete_primative(mport, *packs, 0) != MPORT_OK) {
-			msgbox(GTK_WINDOW(window), mport_err_string());
-			mport_instance_free(mport);
-			exit(1);
-		}
-		packs++;
-	}
-	return (0); // todo: handler
+        message = g_strdup_printf("No packages installed matching '%s'", packageName);
+        
+        dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+                                        GTK_DIALOG_DESTROY_WITH_PARENT,
+                                        GTK_MESSAGE_ERROR,
+                                        GTK_BUTTONS_CLOSE,
+                                        "%s", message);
+        
+        gtk_dialog_run(GTK_DIALOG(dialog));
+        gtk_widget_destroy(dialog);
+        g_free(message);
+        
+        return MPORT_ERR_WARN;
+    }
+
+    while (*packs != NULL) {
+        if (mport_delete_primative(mport, *packs, 0) != MPORT_OK) {
+            msgbox(GTK_WINDOW(window), mport_err_string());
+            return MPORT_ERR_FATAL;
+        }
+        packs++;
+    }
+    return MPORT_OK;
 }
 
 
@@ -783,21 +824,22 @@ msgbox(GtkWindow *parent, const char *msg)
 {
 	GtkWidget *dialog, *label, *image, *hbox;
 
-	dialog = gtk_dialog_new_with_buttons("Information", parent,
-	                                     GTK_DIALOG_DESTROY_WITH_PARENT,
-	                                     ("_OK"),
-	                                     GTK_RESPONSE_ACCEPT,
-	                                     NULL);
+	dialog = gtk_dialog_new_with_buttons("Information",
+										 parent, GTK_DIALOG_DESTROY_WITH_PARENT,
+										 NULL, NULL); // No buttons yet
+
+	gtk_dialog_add_button(GTK_DIALOG(dialog), "_OK", GTK_RESPONSE_ACCEPT);
 
 	label = gtk_label_new(msg);
-	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
+	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_LARGE);
+	gtk_image_set_pixel_size(GTK_IMAGE(image), 48); 
 
 	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 	gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
-	gtk_box_pack_start_defaults(GTK_BOX(hbox), image);
-	gtk_box_pack_start_defaults(GTK_BOX(hbox), label);
+	gtk_box_pack_start(GTK_BOX(hbox), image, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(hbox), label, TRUE, TRUE, 0);
 
-	gtk_box_pack_start_defaults(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), hbox);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), hbox, TRUE, TRUE, 0);
 	gtk_widget_show_all(dialog);
 
 	g_signal_connect(G_OBJECT(dialog), "response",
@@ -813,22 +855,22 @@ msgbox_bool(GtkWindow *parent, const char *msg)
 	GtkWidget *dialog, *label, *image, *hbox;
 
 	dialog = gtk_dialog_new_with_buttons("Question", parent,
-	                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-	                                     ("_Yes"),
-	                                     GTK_RESPONSE_ACCEPT,
-	                                     ("_No"),
-	                                     GTK_RESPONSE_REJECT,
-	                                     NULL);
+	                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,                     
+										 NULL, NULL); // No buttons yet                                 
+	   
+	   gtk_dialog_add_button(GTK_DIALOG(dialog), "_Yes", GTK_RESPONSE_ACCEPT);
+	   gtk_dialog_add_button(GTK_DIALOG(dialog), "_No", GTK_RESPONSE_REJECT);
 
 	label = gtk_label_new(msg);
-	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
+	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_LARGE);
+	gtk_image_set_pixel_size(GTK_IMAGE(image), 48); 
 
 	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 	gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
-	gtk_box_pack_start_defaults(GTK_BOX(hbox), image);
-	gtk_box_pack_start_defaults(GTK_BOX(hbox), label);
+	gtk_box_pack_start(GTK_BOX(hbox), image, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(hbox), label, TRUE, TRUE, 0);
 
-	gtk_box_pack_start_defaults(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), hbox);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), hbox, TRUE, TRUE, 0);
 
 	gint result = gtk_dialog_run(GTK_DIALOG(dialog));
 	switch (result) {
@@ -1042,7 +1084,7 @@ populate_remote_index(GtkTreeStore *store)
 		gboolean installed = FALSE;
 
 #ifdef DEBUG
-		fprintf(stderr, "Working on %s\n", (*indexEntries)->pkgname);
+		g_print("Working on %s\n", (*indexEntries)->pkgname);
 #endif
 
 		mportPackageMeta **p2 = packs;
