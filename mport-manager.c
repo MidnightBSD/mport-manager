@@ -377,47 +377,35 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
 {
 	GtkTreeIter iter;
 	GtkTreeModel *model;
-	mportIndexEntry **indexEntries;
+	mportIndexEntry **indexEntries = NULL;
 
 	reset_progress_bar();
 
 	model = gtk_tree_view_get_model(treeView);
 
 	if (gtk_tree_model_get_iter(model, &iter, path)) {
-		gchar *name;
-		gchar *version;
+		gchar *name = NULL;
+		gchar *version = NULL;
 
 		gtk_tree_model_get(model, &iter, INST_TITLE_COLUMN, &name, -1);
 		gtk_tree_model_get(model, &iter, INST_VERSION_COLUMN, &version, -1);
 
-		if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
-			char *msg;
-			asprintf(&msg, "Error looking up package name %s: %s\n", name, mport_err_string());
-			(mport->msg_cb)(msg);
-			free(msg);
-			return;
-		}
+		if (name && version) {
+            if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
+                g_warning("Error looking up package name %s: %s", name, mport_err_string());
+            } else if (indexEntries != NULL) {
+                for (mportIndexEntry **entry = indexEntries; *entry != NULL; entry++) {
+                    if ((*entry)->version != NULL && mport_version_cmp(version, (*entry)->version) == 0) {
+                        g_strlcpy(selectedInstalled, name, sizeof(selectedInstalled));
+                        break;
+                    }
+                }
+                mport_index_entry_free_vec(indexEntries);
+            }
+        }
 
-		if (indexEntries != NULL) {
-			while (*indexEntries != NULL) {
-				if ((*indexEntries)->version != NULL && mport_version_cmp(version, (*indexEntries)->version) == 0) {
-
-					strncpy(selectedInstalled, name, 255);
-					selectedInstalled[255] = '\0';
-
-					break;
-				}
-				indexEntries++;
-			}
-			mport_index_entry_free_vec(indexEntries);
-		}
-
-#if defined(DEBUG)
-		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
-#endif
-
-		g_free(name);
-		g_free(version);
+        g_free(name);
+        g_free(version);
 	}
 }
 
@@ -1204,7 +1192,7 @@ populate_update_packages(GtkTreeStore *store)
 				gtk_tree_store_set(store, &iter,
 								   UPD_TITLE_COLUMN, (*pack)->name,
 								   UPD_VERSION_COLUMN, (*pack)->version,
-								   UPD_OS_RELEASE_COLUMN, (*pack)->os_release,
+								   UPD_OS_RELEASE_COLUMN, (*pack)->os_release ? (*pack)->os_release : "",                           
 								   UPD_NEW_VERSION_COLUMN, (*entry)->version,
 								   -1);
 
