@@ -27,6 +27,7 @@
 
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -160,7 +161,16 @@ main(int argc, char *argv[])
 
 	icon = gdk_pixbuf_new_from_file(ICONFILE, NULL);
 	if (icon) {
-		gtk_window_set_icon(GTK_WINDOW(window), icon);
+		// Scale the icon to a more appropriate size (e.g., 32x32 pixels)
+		GdkPixbuf *scaled_icon = gdk_pixbuf_scale_simple(icon, 32, 32, GDK_INTERP_BILINEAR);
+		if (scaled_icon) {
+			GList *icon_list = NULL;
+			icon_list = g_list_append(icon_list, scaled_icon);
+			gtk_window_set_icon_list(GTK_WINDOW(window), icon_list);
+			g_list_free(icon_list);
+			g_object_unref(scaled_icon);
+		}
+		g_object_unref(icon);
 	}
 
 	// setup destroy signal
