@@ -778,7 +778,7 @@ install(mportInstance *mport, const char *packageName)
 	}
 
 	// Perform the actual installation
-	resultCode = mport_install(mport, (*indexEntry)->pkgname, (*indexEntry)->version, NULL, MPORT_EXPLICT);
+	resultCode = mport_install(mport, (*indexEntry)->pkgname, (*indexEntry)->version, NULL, MPORT_EXPLICIT);
 
 	if (resultCode != MPORT_OK)
 	{
