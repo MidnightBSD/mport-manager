@@ -473,6 +473,7 @@ create_detail_box(GtkWidget *parent)
 	GtkWidget *iconBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 	GtkWidget *rightBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 	GtkWidget *licenseBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+	GtkWidget *typeBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 
 	// buttons
 	GtkWidget *buttonBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
@@ -503,23 +504,31 @@ create_detail_box(GtkWidget *parent)
 	gtk_box_pack_start(GTK_BOX(iconBox), detail.labelName, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(iconBox), detail.labelVersion, FALSE, TRUE, 0);
 
-	// setup license
-	gtk_box_set_homogeneous(GTK_BOX(licenseBox), FALSE);
-	GtkWidget *licenseLabel = gtk_label_new("License: ");
-	gtk_box_pack_start(GTK_BOX(licenseBox), licenseLabel, FALSE, FALSE, 2);
-	gtk_box_pack_start(GTK_BOX(licenseBox), detail.labelLicense, FALSE, TRUE, 0);
-
-	// setup type
-	gtk_box_set_homogeneous(GTK_BOX(licenseBox), FALSE);
-	GtkWidget *typeLabel = gtk_label_new("Type: ");
-	gtk_box_pack_start(GTK_BOX(licenseBox), typeLabel, FALSE, FALSE, 2);
-	gtk_box_pack_start(GTK_BOX(licenseBox), detail.labelType, FALSE, TRUE, 0);
-
+	
 	// setup right side
 	gtk_box_set_homogeneous(GTK_BOX(rightBox), FALSE);
 	gtk_label_set_justify(GTK_LABEL(detail.label), GTK_JUSTIFY_LEFT);
+	gtk_label_set_xalign(GTK_LABEL(detail.label), 0.0);  // Left align the label
 	gtk_box_pack_start(GTK_BOX(rightBox), detail.label, FALSE, TRUE, 0);
-	gtk_box_pack_start(GTK_BOX(rightBox), licenseBox, FALSE, TRUE, 0);
+
+	// setup license
+	gtk_box_set_homogeneous(GTK_BOX(licenseBox), FALSE);
+	GtkWidget *licenseLabel = gtk_label_new("License: ");
+	gtk_label_set_xalign(GTK_LABEL(licenseLabel), 0.0);  // Left align the label
+	gtk_box_pack_start(GTK_BOX(licenseBox), licenseLabel, FALSE, FALSE, 2);
+	gtk_label_set_xalign(GTK_LABEL(detail.labelLicense), 0.0);  // Left align the label
+	gtk_box_pack_start(GTK_BOX(licenseBox), detail.labelLicense, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(rightBox), licenseBox, FALSE, FALSE, 0);
+
+	// setup type
+	gtk_box_set_homogeneous(GTK_BOX(typeBox), FALSE);
+	GtkWidget *typeLabel = gtk_label_new("Type: ");
+	gtk_label_set_xalign(GTK_LABEL(typeLabel), 0.0);  // Left align the label
+	gtk_box_pack_start(GTK_BOX(typeBox), typeLabel, FALSE, FALSE, 2);
+	gtk_label_set_xalign(GTK_LABEL(detail.labelType), 0.0);  // Left align the label
+	gtk_box_pack_start(GTK_BOX(typeBox), detail.labelType, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(rightBox), typeBox, FALSE, FALSE, 0);
+
 
 	// set up outer box
 	gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
