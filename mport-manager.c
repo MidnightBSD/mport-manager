@@ -758,6 +758,7 @@ install(mportInstance *mport, const char *packageName)
 		else
 		{
 			gtk_widget_destroy(dialog);
+			mport_index_entry_free_vec(indexEntry);
 			return MPORT_ERR_WARN;
 		}
 
@@ -765,6 +766,31 @@ install(mportInstance *mport, const char *packageName)
 
 		// Set indexEntry to the chosen package
 		indexEntry += choice;
+	}
+
+	// Perform the actual installation
+	resultCode = mport_install_primative(mport, *indexEntry, MPORT_LOCAL_PKG_PATH);
+
+	if (resultCode != MPORT_OK)
+	{
+		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+												   GTK_DIALOG_DESTROY_WITH_PARENT,
+												   GTK_MESSAGE_ERROR,
+												   GTK_BUTTONS_CLOSE,
+												   "Failed to install package %s: %s",
+												   packageName, mport_err_string());
+		gtk_dialog_run(GTK_DIALOG(dialog));
+		gtk_widget_destroy(dialog);
+	}
+	else
+	{
+		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+												   GTK_DIALOG_DESTROY_WITH_PARENT,
+												   GTK_MESSAGE_INFO,
+												   GTK_BUTTONS_CLOSE,
+												   "Successfully installed package %s", packageName);
+		gtk_dialog_run(GTK_DIALOG(dialog));
+		gtk_widget_destroy(dialog);
 	}
 
 	mport_index_entry_free_vec(indexEntry);
