@@ -1156,6 +1156,7 @@ populate_update_packages(GtkTreeStore *store)
 
 		/* package is not currently available, skip */
 		if (indexEntries == NULL || *indexEntries == NULL) {
+			packs++;
 			continue;
 		}
 
