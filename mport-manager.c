@@ -176,6 +176,7 @@ main(int argc, char *argv[])
 	if (mport_instance_init(mport, NULL, NULL, false, MPORT_VNORMAL) != MPORT_OK) {
 		errx(1, "%s", mport_err_string());
 	}
+	mport->force = false;
 
 	/* Setup callbacks */
 	mport->msg_cb = &mport_gtk_msg_cb;
@@ -602,7 +603,7 @@ lookupIndex(mportInstance *mport, const char *packageName)
 	mportIndexEntry **indexEntries;
 
 	if (mport_index_lookup_pkgname(mport, packageName, &indexEntries) != MPORT_OK) {
-		fprintf(stderr, "Error looking up package name %s: %d %s\n",
+		fprintf(stderr,  "Error looking up package name %s: %d %s\n",
 		        packageName, mport_err_code(), mport_err_string());
 		errx(mport_err_code(), "%s", mport_err_string());
 	}
