@@ -373,7 +373,8 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
 		gtk_tree_model_get(model, &iter, INST_VERSION_COLUMN, &version, -1);
 
 		if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
-			char *msg = asprintf("Error looking up package name %s: %d %s\n", name, mport_err_code(), mport_err_string());
+			char *msg;
+			asprintf(&msg, "Error looking up package name %s: %s\n", name, mport_err_string());
 			(mport->msg_cb)(msg);
 			free(msg);
 			return;
@@ -422,7 +423,8 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 		gtk_tree_model_get(model, &iter, VERSION_COLUMN, &version, -1);
 
 		if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
-			char *msg = asprintf("Error looking up package name %s: %d %s\n", name, mport_err_code(), mport_err_string());
+			char *msg;
+			asprintf(&msg, "Error looking up package name %s: %s\n", name, mport_err_string());
 			(mport->msg_cb)(msg);
 			free(msg);
 			return;
@@ -583,7 +585,8 @@ indexCheck(mportInstance *mport, mportPackageMeta *pack)
 	int ret = 0;
 
 	if (mport_index_lookup_pkgname(mport, pack->name, &indexEntries) != MPORT_OK) {
-		char *msg = asprintf("Error looking up package name %s: %d %s\n", pack->name, mport_err_code(), mport_err_string());
+		char *msg;
+		asprintf(&msg,("Error looking up package name %s: %s\n", pack->name, mport_err_string());
 		(mport->msg_cb)(msg);
 		free(msg);
 		return (0);
