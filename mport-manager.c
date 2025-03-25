@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include <err.h>
 #include <string.h>
-
+#include <locale.h>
 #include <X11/Xlib.h>
 
 #include <mport.h>
