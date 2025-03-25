@@ -141,6 +141,11 @@ main(int argc, char *argv[])
 	GtkWidget *stack;
 	GdkPixbuf *icon;
 
+	// setup env for mport
+	if (setenv("POSIXLY_CORRECT", "1", 1) == -1)
+		err(EXIT_FAILURE, "setenv() failed");
+	setlocale(LC_ALL, "");
+
 	mport = mport_instance_new();
 	if (mport == NULL) {
 		errx(EXIT_FAILURE, "mport_instance_new() failed");
