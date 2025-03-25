@@ -493,7 +493,7 @@ create_detail_box(GtkWidget *parent)
 	detail.labelVersion = gtk_label_new("");
 	detail.labelName = gtk_label_new("");
 	detail.labelLicense = gtk_label_new("");
-	detail.image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_LARGE);
+	detail.image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
 	gtk_image_set_pixel_size(GTK_IMAGE(detail.image), 48); 
 
 	// setup  left label area
@@ -609,15 +609,14 @@ lookupIndex(mportInstance *mport, const char *packageName)
 {
 	mportIndexEntry **indexEntries;
 
-	if (mport_index_lookup_pkgname(mport, packageName, &indexEntries) != MPORT_OK) {
-		g_print("Error looking up package name %s: %d %s\n",
-		        packageName, mport_err_code(), mport_err_string());
-
+	if (mport_index_lookup_pkgname(mport, packageName, &indexEntries) != MPORT_OK)
+	{
 		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
-		GTK_DIALOG_DESTROY_WITH_PARENT,
-		GTK_MESSAGE_ERROR,
-		GTK_BUTTONS_CLOSE,
-		mport_err_string());
+												   GTK_DIALOG_DESTROY_WITH_PARENT,
+												   GTK_MESSAGE_ERROR,
+												   GTK_BUTTONS_CLOSE,
+												   "Error looking up package name %s: %d %s\n",
+												   packageName, mport_err_code(), mport_err_string());
 		gtk_dialog_run(GTK_DIALOG(dialog));
 		gtk_widget_destroy(dialog);
 		gtk_main_quit();
@@ -761,7 +760,7 @@ install(mportInstance *mport, const char *packageName)
 		else
 		{
 			gtk_widget_destroy(dialog);
-			return MPORT_ERR_CANCEL; // User cancelled the operation
+			return MPORT_ERR_WARN;
 		}
 
 		gtk_widget_destroy(dialog);
@@ -831,7 +830,7 @@ msgbox(GtkWindow *parent, const char *msg)
 	gtk_dialog_add_button(GTK_DIALOG(dialog), "_OK", GTK_RESPONSE_ACCEPT);
 
 	label = gtk_label_new(msg);
-	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_LARGE);
+	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
 	gtk_image_set_pixel_size(GTK_IMAGE(image), 48); 
 
 	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
@@ -862,7 +861,7 @@ msgbox_bool(GtkWindow *parent, const char *msg)
 	   gtk_dialog_add_button(GTK_DIALOG(dialog), "_No", GTK_RESPONSE_REJECT);
 
 	label = gtk_label_new(msg);
-	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_LARGE);
+	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
 	gtk_image_set_pixel_size(GTK_IMAGE(image), 48); 
 
 	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
