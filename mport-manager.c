@@ -121,6 +121,7 @@ void reset_progress_bar(void);
 static int delete(const char *);
 static int indexCheck(mportInstance *, mportPackageMeta *);
 static int install(mportInstance *, const char *);
+static int install_depends(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
 
 /* Callbacks */
@@ -787,7 +788,7 @@ install(mportInstance *mport, const char *packageName)
 	}
 
 	// Perform the actual installation
-	resultCode = mport_install(mport, (*indexEntry)->pkgname, (*indexEntry)->version, NULL, MPORT_EXPLICIT);
+	resultCode = install_depends(mport, (*indexEntry)->pkgname, (*indexEntry)->version, MPORT_EXPLICIT);
 
 	if (resultCode != MPORT_OK)
 	{
@@ -814,6 +815,48 @@ install(mportInstance *mport, const char *packageName)
 	mport_index_entry_free_vec(indexEntry);
 
 	return (resultCode);
+}
+
+static int
+install_depends(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic) 
+{
+        mportPackageMeta **packs;
+        mportDependsEntry **depends;
+
+        if (packageName == NULL || version == NULL)
+                return (MPORT_ERR_FATAL);
+
+        mport_index_depends_list(mport, packageName, version, &depends);
+
+        if (mport_pkgmeta_search_master(mport, &packs, "pkg=%Q", packageName) != MPORT_OK) {
+                msgbox(GTK_WINDOW(window), mport_err_string());
+                return mport_err_code();
+        }
+
+        if (packs == NULL && depends == NULL) {
+                /* Package is not installed and there are no dependencies */
+                if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
+                        msgbox(GTK_WINDOW(window), mport_err_string());
+                        return mport_err_code();
+                }
+        } else if (packs == NULL) {
+                /* Package is not installed */
+                while (*depends != NULL) {
+                        install_depends(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC);
+                        depends++;
+                }
+                if (mport_install(mport, packageName, version, NULL, MPORT_EXPLICIT) != MPORT_OK) {
+                        msgbox(GTK_WINDOW(window), mport_err_string());
+                        return mport_err_code();
+                }
+                mport_index_depends_free_vec(depends);
+        } else {
+                /* already installed */
+                mport_pkgmeta_vec_free(packs);
+                mport_index_depends_free_vec(depends);
+        }
+
+        return (MPORT_OK);
 }
 
 static int
