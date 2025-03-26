@@ -701,7 +701,7 @@ installed_delete_button_clicked(GtkButton *button, GtkWidget *parent)
 
 	if (selectedInstalled[0] != '\0') {
 		result = delete(selectedInstalled);
-		g_print("Delete %s returned %d", selectedInstalled[0], result);
+		g_print("Delete %s returned %d", selectedInstalled, result);
 
 		/* reload search data after delete */
 		reload_installed();
@@ -880,20 +880,25 @@ delete(const char *packageName)
 {
     const char *where = "LOWER(pkg)=LOWER(%Q)";
 	mportPackageMeta **packs = NULL;
-	mportPackageMeta **packs_orig = NULL;
+	int result = MPORT_OK;
+
+	if (packageName == NULL) {
+		g_print("package name not defined\n");
+		return MPORT_ERR_FATAL;
+	}
 
     if (mport_pkgmeta_search_master(mport, &packs, where, packageName) != MPORT_OK) {
-		g_print("could not find package %s: %s\n", packageName, mport_err_string());
+		g_print("package lookup failure %s: %s\n", packageName, mport_err_string());
         msgbox(GTK_WINDOW(window), mport_err_string());
         return MPORT_ERR_FATAL;
     }
 
-    if (packs == NULL) {
+    if (packs == NULL || *packs == NULL) {
         GtkWidget *dialog;
         gchar *message;
 
         message = g_strdup_printf("No packages installed matching '%s'", packageName);
-        g_print(message);
+		g_print("%s\n", message);
         dialog = gtk_message_dialog_new(GTK_WINDOW(window),
                                         GTK_DIALOG_DESTROY_WITH_PARENT,
                                         GTK_MESSAGE_ERROR,
@@ -907,20 +912,18 @@ delete(const char *packageName)
         return MPORT_ERR_WARN;
     }
 
-	packs = packs_orig;
-    while (*packs != NULL) {
-		(*packs)->action = MPORT_ACTION_DELETE;
-        if (mport_delete_primative(mport, *packs, 0) != MPORT_OK) {
+	for (mportPackageMeta **pack = packs; *pack != NULL; pack++) {
+		(*pack)->action = MPORT_ACTION_DELETE;
+		if (mport_delete_primative(mport, *pack, 0) != MPORT_OK) {
 			g_print("could not delete package %s: %s\n", packageName, mport_err_string());
             msgbox(GTK_WINDOW(window), mport_err_string());
-			mport_pkgmeta_vec_free(packs_orig);
-            return MPORT_ERR_FATAL;
+			result = MPORT_ERR_FATAL;
+			break;
         }
-        packs++;
     }
 
-	mport_pkgmeta_vec_free(packs_orig);
-    return MPORT_OK;
+    mport_pkgmeta_vec_free(packs);
+    return result;
 }
 
 
