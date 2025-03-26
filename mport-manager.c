@@ -496,21 +496,46 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 static void
 refresh_stats(void)
 {
-	char flatsize_str[8];
+	char flatsize_str[16];
+	char installed_str[16];
+	char available_str[16];
 	mportStats *s = NULL;
 	if (mport_stats(mport, &s) != MPORT_OK)
 	{
-		warnx("%s", mport_err_string());
-		return (1);
+		const char* err_msg = mport_err_string();
+        g_warning("Failed to get mport stats: %s", err_msg);
+        msgbox(GTK_WINDOW(window), err_msg);  // Display error to user
+      
+		return;
 	}
 
-	humanize_number(flatsize_str, sizeof(flatsize_str), s->pkg_installed_size, "B", HN_AUTOSCALE, HN_DECIMAL | HN_IEC_PREFIXES);
+	if (s == NULL)
+    {
+        g_warning("mport_stats returned NULL");
+        msgbox(GTK_WINDOW(window), "Failed to retrieve package statistics");
+        return;
+    }
+	
+	if (snprintf(installed_str, sizeof(installed_str), "%u", s->pkg_installed) < 0)
+    {
+        g_warning("Error formatting installed package count");
+    }
 
-	gtk_label_set_text(GTK_LABEL(stats.labelInstalledPackages), s->pkg_installed);
+    if (snprintf(available_str, sizeof(available_str), "%u", s->pkg_available) < 0)
+    {
+        g_warning("Error formatting available package count");
+    }
 
-	gtk_label_set_text(GTK_LABEL(stats.labelDiskSpaceOccupied), s->flatsize_str);
+	if (humanize_number(flatsize_str, sizeof(flatsize_str), s->pkg_installed_size, "B", HN_AUTOSCALE, HN_DECIMAL | HN_IEC_PREFIXES) < 0)
+    {
+        g_warning("Error formatting installed size");
+        snprintf(flatsize_str, sizeof(flatsize_str), "%lld B", (long long)s->pkg_installed_size);
+    }
+	gtk_label_set_text(GTK_LABEL(stats.labelInstalledPackages), installed_str);
+	gtk_label_set_text(GTK_LABEL(stats.labelDiskSpaceOccupied), flatsize_str);
+	gtk_label_set_text(GTK_LABEL(stats.labelPackagesAvailable), available_str);
 
-	gtk_label_set_text(GTK_LABEL(stats.labelPackagesAvailable), s->pkg_available);
+	free(s);
 }
 
 static void
