@@ -3,7 +3,7 @@ CC=clang
 CFLAGS= -I/usr/include -I/usr/local/include -Wall -pedantic -std=c99 -O2 `pkg-config --cflags gtk+-3.0` \
 	-DDATADIR="\"${DATADIR}\""
 LDFLAGS= -L/usr/lib -L/usr/local/lib \
-	-lmd -larchive -lbz2 -llzma -lz -lfetch -lsqlite3 -lmport \
+	-lmd -larchive -lbz2 -llzma -lz -lfetch -lsqlite3 -lmport -lutil \
 	-lpthread \
 	`pkg-config --libs gtk+-3.0` -lX11
 PREFIX=	/usr/local
