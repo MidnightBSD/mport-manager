@@ -37,6 +37,8 @@
 #include <locale.h>
 #include <X11/Xlib.h>
 
+#include <libutil.h>
+
 #include <mport.h>
 
 #define NAME "MidnightBSD Package Manager"
@@ -63,6 +65,14 @@ struct available_detail {
 };
 
 struct available_detail detail;
+
+struct stats_detail {
+	GtkWidget *labelInstalledPackages;
+	GtkWidget *labelDiskSpaceOccupied;
+	GtkWidget *labelPackagesAvailable;
+};
+
+struct stats_detail stats;
 
 /*
  * Installed Software Tab's selected name
@@ -94,6 +104,7 @@ enum
 
 static void reload_installed(void);
 static void reload_updates(void);
+static void refresh_stats(void);
 static void do_search(void);
 static void button_clicked(GtkButton *button, GtkWindow *parent);
 static void reset_search_button_clicked(GtkButton *button, GtkWindow *parent);
@@ -114,6 +125,7 @@ static void populate_remote_index(GtkTreeStore *store);
 static void search_remote_index(GtkTreeStore *store, const char *query);
 static void create_menus(GtkWidget *window, GtkWidget *parent, GtkWidget *search);
 static void create_detail_box(GtkWidget *parent);
+static void create_stats_box(GtkWidget *parent);
 static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 static void installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 void reset_progress_bar(void);
@@ -262,7 +274,7 @@ main(int argc, char *argv[])
 	g_signal_connect(G_OBJECT(removeInstalledAppButton), "clicked",
 	                 G_CALLBACK(installed_delete_button_clicked),
 	                 (gpointer) window);
-	// create update box
+	// create installed box
 	GtkWidget *installedBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 	gtk_box_pack_start(GTK_BOX(installedBox), scrolled_installed, TRUE, TRUE, 5);
 	gtk_box_pack_start(GTK_BOX(installedBox), removeInstalledAppButton, FALSE, TRUE, 5);
@@ -283,11 +295,15 @@ main(int argc, char *argv[])
 	GtkWidget *updateBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 	gtk_box_pack_start(GTK_BOX(updateBox), scrolled_updates, TRUE, TRUE, 5);
 	gtk_box_pack_start(GTK_BOX(updateBox), updateButton, FALSE, TRUE, 5);
-
+	// create stats box
+	GtkWidget *statsBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+	create_stats_box(statsBox);
+	
 	// add all the stacks
 	gtk_stack_add_titled(GTK_STACK(stack), vbox, "page-1", "Available Software");
 	gtk_stack_add_titled(GTK_STACK(stack), installedBox, "page-2", "Installed Software");
 	gtk_stack_add_titled(GTK_STACK(stack), updateBox, "page-3", "Updates");
+	gtk_stack_add_titled(GTK_STACK(stack), statsBox, "page-4", "Stats");
 
 	gtk_stack_set_visible_child(GTK_STACK(stack), vbox);
 	gtk_stack_set_visible_child_name(GTK_STACK(stack), "page-1");
@@ -465,6 +481,80 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 	}
 }
 
+/**
+ * @brief Creates and populates a box with package statistics.
+ *
+ * This function creates a vertical box containing labels for various package statistics,
+ * including the number of installed packages, disk space occupied, and available packages.
+ * The statistics are organized into sections for local and remote package databases.
+ *
+ * @param parent The parent widget to which the stats box will be added.
+ *
+ * @return This function does not return a value.
+ */
+
+static void
+refresh_stats(void)
+{
+	char flatsize_str[8];
+	mportStats *s = NULL;
+	if (mport_stats(mport, &s) != MPORT_OK)
+	{
+		warnx("%s", mport_err_string());
+		return (1);
+	}
+
+	humanize_number(flatsize_str, sizeof(flatsize_str), s->pkg_installed_size, "B", HN_AUTOSCALE, HN_DECIMAL | HN_IEC_PREFIXES);
+
+	gtk_label_set_text(GTK_LABEL(stats.labelInstalledPackages), s->pkg_installed);
+
+	gtk_label_set_text(GTK_LABEL(stats.labelDiskSpaceOccupied), s->flatsize_str);
+
+	gtk_label_set_text(GTK_LABEL(stats.labelPackagesAvailable), s->pkg_available);
+}
+
+static void
+create_stats_box(GtkWidget *parent)
+{
+	// create labels
+	stats.labelDiskSpaceOccupied = gtk_label_new("");
+	stats.labelInstalledPackages = gtk_label_new("");
+	stats.labelPackagesAvailable = gtk_label_new("");
+
+	GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+
+	GtkWidget *localPackageDatabase = gtk_label_new("Local package database: ");
+	gtk_box_pack_start(GTK_BOX(vbox), localPackageDatabase, FALSE, FALSE, 2);
+	
+	GtkWidget *hboxInstalled = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);	
+	GtkWidget *installedPackagesLabel = gtk_label_new("Installed packages: ");
+	gtk_label_set_xalign(GTK_LABEL(installedPackagesLabel), 0.0);  // Left align the label
+	gtk_box_pack_start(GTK_BOX(hboxInstalled), installedPackagesLabel, FALSE, FALSE, 2);
+	gtk_box_pack_start(GTK_BOX(hboxInstalled), stats.labelInstalledPackages, FALSE, FALSE, 2);
+	gtk_box_pack_start(GTK_BOX(vbox), hboxInstalled, FALSE, FALSE, 2);
+
+	GtkWidget *hboxDisk= gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);	
+	GtkWidget *diskSpaceLabel = gtk_label_new("Disk space occupied: ");
+	gtk_label_set_xalign(GTK_LABEL(diskSpaceLabel), 0.0);  // Left align the label
+	gtk_box_pack_start(GTK_BOX(hboxDisk), diskSpaceLabel, FALSE, FALSE, 2);
+	gtk_box_pack_start(GTK_BOX(hboxDisk), stats.labelDiskSpaceOccupied, FALSE, FALSE, 2);
+	gtk_box_pack_start(GTK_BOX(vbox), hboxDisk, FALSE, FALSE, 2);
+
+	GtkWidget *remotePackageDatabase = gtk_label_new("Remote package database: ");
+	gtk_box_pack_start(GTK_BOX(vbox), remotePackageDatabase, FALSE, FALSE, 2);
+
+	GtkWidget *hbokPackAv= gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);	
+	GtkWidget *paLabel = gtk_label_new("Packages available: ");
+	gtk_label_set_xalign(GTK_LABEL(paLabel), 0.0);  // Left align the label
+	gtk_box_pack_start(GTK_BOX(hbokPackAv), paLabel, FALSE, FALSE, 2);
+	gtk_box_pack_start(GTK_BOX(hbokPackAv), stats.labelPackagesAvailable, FALSE, FALSE, 2);
+	gtk_box_pack_start(GTK_BOX(vbox), hbokPackAv, FALSE, FALSE, 2);
+
+	gtk_container_add(GTK_CONTAINER(parent), vbox);
+
+	refresh_stats();
+}
+
 static void
 create_detail_box(GtkWidget *parent)
 {
@@ -592,6 +682,8 @@ update_button_clicked(GtkButton *button, GtkWindow *parent)
 	int resultCode = mport_upgrade(mport);
 	if (resultCode != MPORT_OK)
 		msgbox(parent, mport_err_string());
+
+	refresh_stats();
 }
 
 int
@@ -689,9 +781,8 @@ install_button_clicked(GtkButton *button, GtkWidget *parent)
 	/* reload search data after install */
 	reload_installed();
 	reload_updates();
+	refresh_stats();
 	do_search();
-
-
 }
 
 static void
@@ -706,6 +797,7 @@ installed_delete_button_clicked(GtkButton *button, GtkWidget *parent)
 		/* reload search data after delete */
 		reload_installed();
 		reload_updates();
+		refresh_stats();
 		do_search();
 	}
 }
