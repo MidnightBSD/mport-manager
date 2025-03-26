@@ -93,6 +93,7 @@ enum
 };
 
 static void reload_installed(void);
+static void reload_updates(void);
 static void do_search(void);
 static void button_clicked(GtkButton *button, GtkWindow *parent);
 static void reset_search_button_clicked(GtkButton *button, GtkWindow *parent);
@@ -677,15 +678,20 @@ install_button_clicked(GtkButton *button, GtkWidget *parent)
 	int resultCode = 0;
 
 	const gchar *c = gtk_label_get_text(GTK_LABEL(detail.labelName));
-	if (c == NULL) {
-		msgbox(GTK_WINDOW(window),"mport package name not defined.");
+	if (c == NULL)
+	{
+		msgbox(GTK_WINDOW(window), "mport package name not defined.");
 		return;
 	}
 	resultCode = install(mport, c);
 	g_print("Install returned %d\n", resultCode);
 
 	/* reload search data after install */
+	reload_installed();
+	reload_updates();
 	do_search();
+
+
 }
 
 static void
@@ -699,7 +705,17 @@ installed_delete_button_clicked(GtkButton *button, GtkWidget *parent)
 
 		/* reload search data after delete */
 		reload_installed();
+		reload_updates();
 		do_search();
+	}
+}
+
+static void
+reload_updates(void) {
+	GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(updateTree));
+	if (model != NULL) {
+		gtk_tree_store_clear(GTK_TREE_STORE(model));
+		populate_update_packages(GTK_TREE_STORE(model));
 	}
 }
 
