@@ -90,6 +90,7 @@ enum
 {
 	INST_TITLE_COLUMN,
 	INST_VERSION_COLUMN,
+	INST_FLATSIZE_COLUMN,
 	INST_N_COLUMNS
 };
 
@@ -1196,13 +1197,13 @@ static void
 create_installed_tree(void)
 {
 	GtkTreeStore *store;
-
 	GtkTreeViewColumn *column;
 	GtkCellRenderer *renderer;
 
 	store = gtk_tree_store_new(INST_N_COLUMNS,
 	                           G_TYPE_STRING,
-	                           G_TYPE_STRING);
+	                           G_TYPE_STRING,
+							   G_TYPE_STRING);
 
 	populate_installed_packages(store);
 
@@ -1222,8 +1223,13 @@ create_installed_tree(void)
 	column = gtk_tree_view_column_new_with_attributes("Version", renderer,
 	                                                  "text", INST_VERSION_COLUMN,
 	                                                  NULL);
-
 	gtk_tree_view_append_column(GTK_TREE_VIEW(installedTree), column);
+
+	renderer = gtk_cell_renderer_text_new();
+    column = gtk_tree_view_column_new_with_attributes("Size", renderer,
+                                                      "text", INST_FLATSIZE_COLUMN,
+                                                      NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(installedTree), column);
 
 	g_signal_connect(G_OBJECT(installedTree), "row-activated",
 	                 G_CALLBACK(installed_tree_available_row_click_handler),
@@ -1364,6 +1370,7 @@ static void
 populate_installed_packages(GtkTreeStore *store)
 {
 	mportPackageMeta **packs;
+	char flatsize_str[10];
 
 	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
 		msgbox(GTK_WINDOW(window), mport_err_string());
@@ -1374,9 +1381,16 @@ populate_installed_packages(GtkTreeStore *store)
 	while (*packs != NULL) {
 		GtkTreeIter iter;
 		gtk_tree_store_append(store, &iter, NULL);
+
+		if (humanize_number(flatsize_str, sizeof(flatsize_str), (*packs)->flatsize, "B",
+			HN_AUTOSCALE, HN_DECIMAL | HN_IEC_PREFIXES) < 0) {
+			snprintf(flatsize_str, sizeof(flatsize_str), "%lld B", (long long)(*packs)->flatsize);
+		}
+
 		gtk_tree_store_set(store, &iter,
 		                   INST_TITLE_COLUMN, (*packs)->name,
 		                   INST_VERSION_COLUMN, (*packs)->version,
+						   INST_FLATSIZE_COLUMN, flatsize_str,
 		                   -1);
 
 		packs++;
