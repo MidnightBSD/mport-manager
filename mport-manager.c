@@ -91,6 +91,7 @@ enum
 	INST_TITLE_COLUMN,
 	INST_VERSION_COLUMN,
 	INST_FLATSIZE_COLUMN,
+	INST_LOCK_STATUS_COLUMN,
 	INST_N_COLUMNS
 };
 
@@ -130,6 +131,9 @@ static void create_stats_box(GtkWidget *parent);
 static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 static void installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 void reset_progress_bar(void);
+static void lock_button_clicked(GtkButton *button, GtkWidget *parent);
+static void unlock_button_clicked(GtkButton *button, GtkWidget *parent);
+static mportPackageMeta** lookup_for_lock(mportInstance *mport, const char *packageName);
 
 // mport stuff
 static int delete(const char *);
@@ -137,6 +141,8 @@ static int indexCheck(mportInstance *, mportPackageMeta *);
 static int install(mportInstance *, const char *);
 static int install_depends(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
+static int lock(mportInstance *mport, const char *packageName);
+static int unlock(mportInstance *mport, const char *packageName);
 
 /* Callbacks */
 void mport_gtk_msg_cb(const char *msg);
@@ -275,10 +281,25 @@ main(int argc, char *argv[])
 	g_signal_connect(G_OBJECT(removeInstalledAppButton), "clicked",
 	                 G_CALLBACK(installed_delete_button_clicked),
 	                 (gpointer) window);
+	// Create lock button
+    GtkWidget *lockButton = gtk_button_new_with_mnemonic("_Lock");
+    g_signal_connect(G_OBJECT(lockButton), "clicked",
+                     G_CALLBACK(lock_button_clicked),
+                     (gpointer) window);
+
+    // Create unlock button
+    GtkWidget *unlockButton = gtk_button_new_with_mnemonic("_Unlock");
+    g_signal_connect(G_OBJECT(unlockButton), "clicked",
+                     G_CALLBACK(unlock_button_clicked),
+                     (gpointer) window);
 	// create installed box
 	GtkWidget *installedBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 	gtk_box_pack_start(GTK_BOX(installedBox), scrolled_installed, TRUE, TRUE, 5);
-	gtk_box_pack_start(GTK_BOX(installedBox), removeInstalledAppButton, FALSE, TRUE, 5);
+	GtkWidget *buttonBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+	gtk_box_pack_start(GTK_BOX(buttonBox), removeInstalledAppButton, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(buttonBox), lockButton, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(buttonBox), unlockButton, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(installedBox), buttonBox, FALSE, FALSE, 5);
 
 
 	// Scroll for updates
@@ -388,6 +409,42 @@ reset_progress_bar(void)
 
 	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), "");
 	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), 0.0);
+}
+
+static void
+lock_button_clicked(GtkButton *button, GtkWidget *parent)
+{
+    if (selectedInstalled[0] != '\0') {
+        int result = lock(mport, selectedInstalled);
+        if (result == MPORT_OK) {
+            g_print("Successfully locked package: %s\n", selectedInstalled);
+            msgbox(GTK_WINDOW(window), "Package locked successfully.");
+			reload_installed();
+        } else {
+            g_print("Failed to lock package: %s\n", selectedInstalled);
+            msgbox(GTK_WINDOW(window), "Failed to lock package.");
+        }
+    } else {
+        msgbox(GTK_WINDOW(window), "Please select a package to lock.");
+    }
+}
+
+static void
+unlock_button_clicked(GtkButton *button, GtkWidget *parent)
+{
+    if (selectedInstalled[0] != '\0') {
+        int result = unlock(mport, selectedInstalled);
+        if (result == MPORT_OK) {
+            g_print("Successfully unlocked package: %s\n", selectedInstalled);
+            msgbox(GTK_WINDOW(window), "Package unlocked successfully.");
+			reload_installed();
+        } else {
+            g_print("Failed to unlock package: %s\n", selectedInstalled);
+            msgbox(GTK_WINDOW(window), "Failed to unlock package.");
+        }
+    } else {
+        msgbox(GTK_WINDOW(window), "Please select a package to unlock.");
+    }
 }
 
 
@@ -1231,6 +1288,12 @@ create_installed_tree(void)
                                                       NULL);
     gtk_tree_view_append_column(GTK_TREE_VIEW(installedTree), column);
 
+	renderer = gtk_cell_renderer_text_new();
+    column = gtk_tree_view_column_new_with_attributes("Lock Status", renderer,
+                                                      "text", INST_LOCK_STATUS_COLUMN,
+                                                      NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(installedTree), column);
+
 	g_signal_connect(G_OBJECT(installedTree), "row-activated",
 	                 G_CALLBACK(installed_tree_available_row_click_handler),
 	                 (gpointer)NULL);
@@ -1387,10 +1450,13 @@ populate_installed_packages(GtkTreeStore *store)
 			snprintf(flatsize_str, sizeof(flatsize_str), "%lld B", (long long)(*packs)->flatsize);
 		}
 
+		const char *lock_status = (mport_lock_islocked(*packs) == MPORT_LOCKED) ? "Locked" : "Unlocked";
+
 		gtk_tree_store_set(store, &iter,
 		                   INST_TITLE_COLUMN, (*packs)->name,
 		                   INST_VERSION_COLUMN, (*packs)->version,
 						   INST_FLATSIZE_COLUMN, flatsize_str,
+						   INST_LOCK_STATUS_COLUMN, lock_status,
 		                   -1);
 
 		packs++;
@@ -1472,4 +1538,54 @@ populate_update_packages(GtkTreeStore *store)
 
 	free(os_release);
     mport_pkgmeta_vec_free(packs);
+}
+
+static mportPackageMeta** 
+lookup_for_lock(mportInstance *mport, const char *packageName)
+{
+	mportPackageMeta **packs = NULL;
+
+	if (packageName == NULL) {
+		warnx("%s", "Specify package name");
+		return (NULL);
+	}
+
+	if (mport_pkgmeta_search_master(mport, &packs, "pkg=%Q", packageName) != MPORT_OK) {
+		warnx("%s", mport_err_string());
+		return (NULL);
+	}
+
+	if (packs == NULL) {
+		warnx("Package name not found, %s", packageName);
+	}
+
+	return (packs);
+}
+
+static int
+lock(mportInstance *mport, const char *packageName)
+{
+	mportPackageMeta **packs = lookup_for_lock(mport, packageName);
+
+	if (packs != NULL) {
+		mport_lock_lock(mport, (*packs));
+		mport_pkgmeta_free(*packs);
+		return (MPORT_OK);
+	}
+
+	return (MPORT_ERR_FATAL);
+}
+
+static int
+unlock(mportInstance *mport, const char *packageName)
+{
+	mportPackageMeta **packs = lookup_for_lock(mport, packageName);
+
+	if (packs != NULL) {
+		mport_lock_unlock(mport, (*packs));
+		mport_pkgmeta_free(*packs);
+		return (MPORT_OK);
+	}
+
+	return (MPORT_ERR_FATAL);
 }
