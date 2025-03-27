@@ -552,8 +552,6 @@ create_stats_box(GtkWidget *parent)
 	gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
 	gtk_grid_set_row_spacing(GTK_GRID(grid), 8);
 
-	GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-
 	GtkWidget *localPackageDatabase = gtk_label_new("Local package database:");
 	gtk_widget_set_halign(localPackageDatabase, GTK_ALIGN_START);
 	gtk_grid_attach(GTK_GRID(grid), localPackageDatabase, 0, 0, 2, 1);
@@ -872,7 +870,6 @@ install(mportInstance *mport, const char *packageName)
 	mportIndexEntry **i2;
 	int resultCode = MPORT_OK;
 	int item;
-	int choice;
 
 	indexEntry = lookupIndex(mport, packageName);
 	if (indexEntry == NULL || *indexEntry == NULL)
