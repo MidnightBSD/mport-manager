@@ -496,7 +496,7 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 static void
 refresh_stats(void)
 {
-	char flatsize_str[12];
+	char flatsize_str[10];
 	char installed_str[16];
 	char available_str[16];
 	mportStats *s = NULL;
