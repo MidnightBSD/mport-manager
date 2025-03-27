@@ -927,16 +927,27 @@ reload_updates(void) {
 
 static void
 reload_installed(void) {
+	g_print("Starting reload_installed\n");
 	GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(installedTree));
-	if (model != NULL) {
-		GtkTreeStore *store = GTK_TREE_STORE(model);
-		gtk_tree_store_clear(store);
-		g_print("Cleared installed packages tree\n");
-		populate_installed_packages(store);
-		g_print("Repopulated installed packages tree\n");
-	} else {
-        g_warning("Failed to get tree model for installed packages");
+	
+	if (model == NULL) {
+        g_critical("Failed to get tree model for installed packages");
+        return;
     }
+
+	GtkTreeStore *store = GTK_TREE_STORE(model);
+    if (store == NULL) {
+        g_critical("Tree model is not a GtkTreeStore");
+        return;
+    }
+
+    gtk_tree_store_clear(store);
+    g_print("Cleared installed packages tree\n");
+
+    populate_installed_packages(store);
+    g_print("Repopulated installed packages tree\n");
+
+    g_print("Finished reload_installed\n");
 }
 
 static int
@@ -950,6 +961,7 @@ install(mportInstance *mport, const char *packageName)
 	indexEntry = lookupIndex(mport, packageName);
 	if (indexEntry == NULL || *indexEntry == NULL)
 	{
+		g_warning("Package %s not found in the index.", packageName);
 		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
 												   GTK_DIALOG_DESTROY_WITH_PARENT,
 												   GTK_MESSAGE_ERROR,
@@ -1014,10 +1026,14 @@ install(mportInstance *mport, const char *packageName)
 	}
 
 	// Perform the actual installation
+	g_print("Installing package: %s version: %s\n", (*indexEntry)->pkgname, (*indexEntry)->version);
+ 
 	resultCode = install_depends(mport, (*indexEntry)->pkgname, (*indexEntry)->version, MPORT_EXPLICIT);
 
 	if (resultCode != MPORT_OK)
 	{
+		g_warning("Failed to install package %s: %s", packageName, mport_err_string());
+     
 		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
 												   GTK_DIALOG_DESTROY_WITH_PARENT,
 												   GTK_MESSAGE_ERROR,
@@ -1029,6 +1045,7 @@ install(mportInstance *mport, const char *packageName)
 	}
 	else
 	{
+		g_print("Successfully installed package %s\n", packageName);
 		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
 												   GTK_DIALOG_DESTROY_WITH_PARENT,
 												   GTK_MESSAGE_INFO,
@@ -1039,6 +1056,8 @@ install(mportInstance *mport, const char *packageName)
 	}
 
 	mport_index_entry_free_vec(indexEntry);
+
+	g_print("Finished installation process for package: %s\n", packageName);
 
 	return (resultCode);
 }
@@ -1452,10 +1471,14 @@ populate_installed_packages(GtkTreeStore *store)
 
     g_print("Starting populate_installed_packages\n");
 
+	if (store == NULL) {
+		g_critical("Store is NULL in populate_installed_packages");
+		return;
+	}
+
 	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
 		g_warning("Failed to get package list: %s", mport_err_string());
 		msgbox(GTK_WINDOW(window), mport_err_string());
-		mport_instance_free(mport);
 		return;
 	}
 
@@ -1466,21 +1489,27 @@ populate_installed_packages(GtkTreeStore *store)
 
 	for (mportPackageMeta **pack = packs; pack && *pack; pack++) {
 		GtkTreeIter iter;
-		gtk_tree_store_append(store, &iter, NULL);
+		 
+        g_print("Processing package: %s\n", (*pack)->name ? (*pack)->name : "NULL");
 
-		if ((*pack)->flatsize < 0) {
-            g_warning("Invalid flatsize for package: %s", (*pack)->name);
+		if (!gtk_tree_store_append(store, &iter, NULL)) {
+            g_warning("Failed to append to tree store");
             continue;
         }
 
-		if (humanize_number(flatsize_str, sizeof(flatsize_str), (*pack)->flatsize, "B",
+		if ((*pack)->flatsize < 0) {
+			g_warning("Invalid flatsize for package: %s", (*pack)->name);
+            snprintf(flatsize_str, sizeof(flatsize_str), "Unknown");
+            continue;
+        } else if (humanize_number(flatsize_str, sizeof(flatsize_str), (*pack)->flatsize, "B",
 			HN_AUTOSCALE, HN_DECIMAL | HN_IEC_PREFIXES) < 0) {
 			snprintf(flatsize_str, sizeof(flatsize_str), "%lld B", (long long)(*pack)->flatsize);
 		}
 
 		const char *lock_status = (mport_lock_islocked(*pack) == MPORT_LOCKED) ? "Locked" : "Unlocked";
 
-		g_print("Adding installed package: %s\n", (*pack)->name);
+		g_print("Adding installed package: %s\n", (*pack)->name ? (*pack)->name : "NULL");
+
 
 		gtk_tree_store_set(store, &iter,
 		                   INST_TITLE_COLUMN, (*pack)->name ? (*pack)->name : "",
