@@ -496,7 +496,7 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 static void
 refresh_stats(void)
 {
-	char flatsize_str[16];
+	char flatsize_str[12];
 	char installed_str[16];
 	char available_str[16];
 	mportStats *s = NULL;
@@ -526,7 +526,8 @@ refresh_stats(void)
         g_warning("Error formatting available package count");
     }
 
-	if (humanize_number(flatsize_str, sizeof(flatsize_str), s->pkg_installed_size, "B", HN_AUTOSCALE, HN_DECIMAL | HN_IEC_PREFIXES) < 0)
+	if (humanize_number(flatsize_str, sizeof(flatsize_str), s->pkg_installed_size, "B",
+	 HN_AUTOSCALE, HN_DECIMAL | HN_IEC_PREFIXES) < 0)
     {
         g_warning("Error formatting installed size");
         snprintf(flatsize_str, sizeof(flatsize_str), "%lld B", (long long)s->pkg_installed_size);
@@ -546,36 +547,41 @@ create_stats_box(GtkWidget *parent)
 	stats.labelInstalledPackages = gtk_label_new("");
 	stats.labelPackagesAvailable = gtk_label_new("");
 
+	GtkWidget *grid = gtk_grid_new();
+	gtk_grid_set_column_spacing(GTK_GRID(grid), 10);
+	gtk_grid_set_row_spacing(GTK_GRID(grid), 5);
+
 	GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 
 	GtkWidget *localPackageDatabase = gtk_label_new("Local package database: ");
-	gtk_box_pack_start(GTK_BOX(vbox), localPackageDatabase, FALSE, FALSE, 2);
-	
-	GtkWidget *hboxInstalled = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);	
+	gtk_widget_set_halign(localPackageDatabase, GTK_ALIGN_START);
+	gtk_grid_attach(GTK_GRID(grid), localPackageDatabase, 0, 0, 2, 1);
+
 	GtkWidget *installedPackagesLabel = gtk_label_new("Installed packages: ");
-	gtk_label_set_xalign(GTK_LABEL(installedPackagesLabel), 0.0);  // Left align the label
-	gtk_box_pack_start(GTK_BOX(hboxInstalled), installedPackagesLabel, FALSE, FALSE, 2);
-	gtk_box_pack_start(GTK_BOX(hboxInstalled), stats.labelInstalledPackages, FALSE, FALSE, 2);
-	gtk_box_pack_start(GTK_BOX(vbox), hboxInstalled, FALSE, FALSE, 2);
+	gtk_widget_set_halign(installedPackagesLabel, GTK_ALIGN_START);
+	gtk_grid_attach(GTK_GRID(grid), installedPackagesLabel, 0, 1, 1, 1);
+	gtk_widget_set_halign(stats.labelInstalledPackages, GTK_ALIGN_START);
+	gtk_grid_attach(GTK_GRID(grid), stats.labelInstalledPackages, 1, 1, 1, 1);
 
-	GtkWidget *hboxDisk= gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);	
-	GtkWidget *diskSpaceLabel = gtk_label_new("Disk space occupied: ");
-	gtk_label_set_xalign(GTK_LABEL(diskSpaceLabel), 0.0);  // Left align the label
-	gtk_box_pack_start(GTK_BOX(hboxDisk), diskSpaceLabel, FALSE, FALSE, 2);
-	gtk_box_pack_start(GTK_BOX(hboxDisk), stats.labelDiskSpaceOccupied, FALSE, FALSE, 2);
-	gtk_box_pack_start(GTK_BOX(vbox), hboxDisk, FALSE, FALSE, 2);
+	GtkWidget *diskSpaceLabel = gtk_label_new("Disk space used:");
+	gtk_widget_set_halign(diskSpaceLabel, GTK_ALIGN_START);
+	gtk_grid_attach(GTK_GRID(grid), diskSpaceLabel, 0, 2, 1, 1);
+	gtk_widget_set_halign(stats.labelDiskSpaceOccupied, GTK_ALIGN_START);
+	gtk_grid_attach(GTK_GRID(grid), stats.labelDiskSpaceOccupied, 1, 2, 1, 1);
 
-	GtkWidget *remotePackageDatabase = gtk_label_new("Remote package database: ");
-	gtk_box_pack_start(GTK_BOX(vbox), remotePackageDatabase, FALSE, FALSE, 2);
+	GtkWidget *remotePackageDatabase = gtk_label_new("Remote package database:");
+	gtk_widget_set_halign(remotePackageDatabase, GTK_ALIGN_START);
+	gtk_grid_attach(GTK_GRID(grid), remotePackageDatabase, 0, 3, 2, 1);
 
-	GtkWidget *hbokPackAv= gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);	
-	GtkWidget *paLabel = gtk_label_new("Packages available: ");
-	gtk_label_set_xalign(GTK_LABEL(paLabel), 0.0);  // Left align the label
-	gtk_box_pack_start(GTK_BOX(hbokPackAv), paLabel, FALSE, FALSE, 2);
-	gtk_box_pack_start(GTK_BOX(hbokPackAv), stats.labelPackagesAvailable, FALSE, FALSE, 2);
-	gtk_box_pack_start(GTK_BOX(vbox), hbokPackAv, FALSE, FALSE, 2);
+	GtkWidget *paLabel = gtk_label_new("Packages available:");
+	gtk_widget_set_halign(paLabel, GTK_ALIGN_START);
+	gtk_grid_attach(GTK_GRID(grid), paLabel, 0, 4, 1, 1);
+	gtk_widget_set_halign(stats.labelPackagesAvailable, GTK_ALIGN_START);
+	gtk_grid_attach(GTK_GRID(grid), stats.labelPackagesAvailable, 1, 4, 1, 1);
 
-	gtk_container_add(GTK_CONTAINER(parent), vbox);
+	gtk_widget_set_size_request(installedPackagesLabel, 150, -1);
+
+	gtk_container_add(GTK_CONTAINER(parent), grid);
 
 	refresh_stats();
 }
