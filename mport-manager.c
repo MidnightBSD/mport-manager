@@ -78,6 +78,7 @@ struct stats_detail stats;
  * Installed Software Tab's selected name
  */
 char selectedInstalled[256] = {'\0'};
+char selectedInstalledVersion[32] = {'\0'};
 
 enum
 {
@@ -414,6 +415,8 @@ reset_progress_bar(void)
 static void
 lock_button_clicked(GtkButton *button, GtkWidget *parent)
 {
+	g_print("Lock button clicked. Selected package: %s\n", selectedInstalled);
+
     if (selectedInstalled[0] != '\0') {
         int result = lock(mport, selectedInstalled);
         if (result == MPORT_OK) {
@@ -432,6 +435,8 @@ lock_button_clicked(GtkButton *button, GtkWidget *parent)
 static void
 unlock_button_clicked(GtkButton *button, GtkWidget *parent)
 {
+	g_print("Unlock button clicked. Selected package: %s\n", selectedInstalled);
+
     if (selectedInstalled[0] != '\0') {
         int result = unlock(mport, selectedInstalled);
         if (result == MPORT_OK) {
@@ -474,12 +479,17 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
                 for (mportIndexEntry **entry = indexEntries; *entry != NULL; entry++) {
                     if ((*entry)->version != NULL && mport_version_cmp(version, (*entry)->version) == 0) {
                         g_strlcpy(selectedInstalled, name, sizeof(selectedInstalled));
+						g_free(name);
+						g_strlcpy(selectedInstalledVersion, version, sizeof(selectedInstalledVersion));
+						g_free(version);
                         break;
                     }
                 }
                 mport_index_entry_free_vec(indexEntries);
             }
-        }
+        } else {
+			selectedInstalled[0] = '\0';
+		}
 
         g_free(name);
         g_free(version);
@@ -1453,6 +1463,8 @@ populate_installed_packages(GtkTreeStore *store)
 
 		const char *lock_status = (mport_lock_islocked(*pack) == MPORT_LOCKED) ? "Locked" : "Unlocked";
 
+		g_print("Adding installed package: %s\n", (*pack)->name);
+		
 		gtk_tree_store_set(store, &iter,
 		                   INST_TITLE_COLUMN, (*pack)->name ? (*pack)->name : "",
 		                   INST_VERSION_COLUMN, (*pack)->version ? (*pack)->version : "",
