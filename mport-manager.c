@@ -1492,10 +1492,7 @@ populate_installed_packages(GtkTreeStore *store)
 		 
         g_print("Processing package: %s\n", (*pack)->name ? (*pack)->name : "NULL");
 
-		if (!gtk_tree_store_append(store, &iter, NULL)) {
-            g_warning("Failed to append to tree store");
-            continue;
-        }
+		gtk_tree_store_append(store, &iter, NULL);
 
 		if ((*pack)->flatsize < 0) {
 			g_warning("Invalid flatsize for package: %s", (*pack)->name);
