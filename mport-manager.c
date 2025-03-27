@@ -476,12 +476,10 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
             if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
                 g_warning("Error looking up package name %s: %s", name, mport_err_string());
             } else if (indexEntries != NULL) {
-                for (mportIndexEntry **entry = indexEntries; *entry != NULL; entry++) {
+                for (mportIndexEntry **entry = indexEntries; entry!=NULL && *entry != NULL; entry++) {
                     if ((*entry)->version != NULL && mport_version_cmp(version, (*entry)->version) == 0) {
                         g_strlcpy(selectedInstalled, name, sizeof(selectedInstalled));
-						g_free(name);
 						g_strlcpy(selectedInstalledVersion, version, sizeof(selectedInstalledVersion));
-						g_free(version);
                         break;
                     }
                 }
@@ -489,6 +487,7 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
             }
         } else {
 			selectedInstalled[0] = '\0';
+			selectedInstalledVersion[0] = '\0'
 		}
 
         g_free(name);
@@ -930,9 +929,14 @@ static void
 reload_installed(void) {
 	GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(installedTree));
 	if (model != NULL) {
-		gtk_tree_store_clear(GTK_TREE_STORE(model));
-		populate_installed_packages(GTK_TREE_STORE(model));
-	}
+		GtkTreeStore *store = GTK_TREE_STORE(model);
+		gtk_tree_store_clear(store);
+		g_print("Cleared installed packages tree\n");
+		populate_installed_packages(store);
+		g_print("Repopulated installed packages tree\n");
+	} else {
+        g_warning("Failed to get tree model for installed packages");
+    }
 }
 
 static int
@@ -1446,15 +1450,28 @@ populate_installed_packages(GtkTreeStore *store)
 	mportPackageMeta **packs;
 	char flatsize_str[10];
 
+    g_print("Starting populate_installed_packages\n");
+
 	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
+		g_warning("Failed to get package list: %s", mport_err_string());
 		msgbox(GTK_WINDOW(window), mport_err_string());
 		mport_instance_free(mport);
-		exit(1);
+		return;
 	}
+
+	if (packs == NULL) {
+        g_warning("No packages found");
+        return;
+    }
 
 	for (mportPackageMeta **pack = packs; pack && *pack; pack++) {
 		GtkTreeIter iter;
 		gtk_tree_store_append(store, &iter, NULL);
+
+		if ((*pack)->flatsize < 0) {
+            g_warning("Invalid flatsize for package: %s", (*pack)->name);
+            continue;
+        }
 
 		if (humanize_number(flatsize_str, sizeof(flatsize_str), (*pack)->flatsize, "B",
 			HN_AUTOSCALE, HN_DECIMAL | HN_IEC_PREFIXES) < 0) {
@@ -1464,7 +1481,7 @@ populate_installed_packages(GtkTreeStore *store)
 		const char *lock_status = (mport_lock_islocked(*pack) == MPORT_LOCKED) ? "Locked" : "Unlocked";
 
 		g_print("Adding installed package: %s\n", (*pack)->name);
-		
+
 		gtk_tree_store_set(store, &iter,
 		                   INST_TITLE_COLUMN, (*pack)->name ? (*pack)->name : "",
 		                   INST_VERSION_COLUMN, (*pack)->version ? (*pack)->version : "",
@@ -1472,6 +1489,8 @@ populate_installed_packages(GtkTreeStore *store)
 						   INST_LOCK_STATUS_COLUMN, lock_status,
 		                   -1);
 	}
+
+	g_print("Finished populate_installed_packages\n");
 
 	mport_pkgmeta_vec_free(packs);
 }
