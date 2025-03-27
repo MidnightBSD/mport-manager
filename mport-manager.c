@@ -552,30 +552,32 @@ create_stats_box(GtkWidget *parent)
 	gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
 	gtk_grid_set_row_spacing(GTK_GRID(grid), 8);
 
-	GtkWidget *localPackageDatabase = gtk_label_new("Local package database:");
+	GtkWidget *localPackageDatabase = gtk_label_new("Local package database");
 	gtk_widget_set_halign(localPackageDatabase, GTK_ALIGN_START);
+	gtk_label_set_markup(GTK_LABEL(localPackageDatabase), "<b><span size=\"larger\">Local package database</span></b>");
 	gtk_grid_attach(GTK_GRID(grid), localPackageDatabase, 0, 0, 2, 1);
 
 	GtkWidget *installedPackagesLabel = gtk_label_new("Installed packages:");
-	gtk_widget_set_halign(installedPackagesLabel, GTK_ALIGN_START);
+	gtk_widget_set_halign(installedPackagesLabel, GTK_ALIGN_END);
 	gtk_grid_attach(GTK_GRID(grid), installedPackagesLabel, 0, 1, 1, 1);
-	gtk_widget_set_halign(stats.labelInstalledPackages, GTK_ALIGN_END);
+	gtk_widget_set_halign(stats.labelInstalledPackages, GTK_ALIGN_START);
 	gtk_grid_attach(GTK_GRID(grid), stats.labelInstalledPackages, 1, 1, 1, 1);
 
 	GtkWidget *diskSpaceLabel = gtk_label_new("Disk space used:");
-	gtk_widget_set_halign(diskSpaceLabel, GTK_ALIGN_START);
+	gtk_widget_set_halign(diskSpaceLabel, GTK_ALIGN_END);
 	gtk_grid_attach(GTK_GRID(grid), diskSpaceLabel, 0, 2, 1, 1);
-	gtk_widget_set_halign(stats.labelDiskSpaceOccupied, GTK_ALIGN_END);
+	gtk_widget_set_halign(stats.labelDiskSpaceOccupied, GTK_ALIGN_START);
 	gtk_grid_attach(GTK_GRID(grid), stats.labelDiskSpaceOccupied, 1, 2, 1, 1);
 
-	GtkWidget *remotePackageDatabase = gtk_label_new("Remote package database:");
+	GtkWidget *remotePackageDatabase = gtk_label_new("Remote package database");
 	gtk_widget_set_halign(remotePackageDatabase, GTK_ALIGN_START);
+	gtk_label_set_markup(GTK_LABEL(remotePackageDatabase), "<b><span size=\"larger\">Remote package database</span></b>");
 	gtk_grid_attach(GTK_GRID(grid), remotePackageDatabase, 0, 3, 2, 1);
 
 	GtkWidget *paLabel = gtk_label_new("Packages available:");
-	gtk_widget_set_halign(paLabel, GTK_ALIGN_START);
+	gtk_widget_set_halign(paLabel, GTK_ALIGN_END);
 	gtk_grid_attach(GTK_GRID(grid), paLabel, 0, 4, 1, 1);
-	gtk_widget_set_halign(stats.labelPackagesAvailable, GTK_ALIGN_END);
+	gtk_widget_set_halign(stats.labelPackagesAvailable, GTK_ALIGN_START);
 	gtk_grid_attach(GTK_GRID(grid), stats.labelPackagesAvailable, 1, 4, 1, 1);
 
 	// Ensure all labels in the first column have the same width
