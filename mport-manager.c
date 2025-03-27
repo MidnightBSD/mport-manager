@@ -578,8 +578,10 @@ create_stats_box(GtkWidget *parent)
 	gtk_widget_set_halign(stats.labelPackagesAvailable, GTK_ALIGN_END);
 	gtk_grid_attach(GTK_GRID(grid), stats.labelPackagesAvailable, 1, 4, 1, 1);
 
-	// Set minimum width for the first column to ensure alignment
+	// Ensure all labels in the first column have the same width
 	gtk_widget_set_size_request(installedPackagesLabel, 150, -1);
+	gtk_widget_set_size_request(diskSpaceLabel, 150, -1);
+	gtk_widget_set_size_request(paLabel, 150, -1);
 
 	// Make the grid expand to fill available space
 	gtk_widget_set_hexpand(grid, TRUE);
