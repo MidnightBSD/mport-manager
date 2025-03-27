@@ -487,7 +487,7 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
             }
         } else {
 			selectedInstalled[0] = '\0';
-			selectedInstalledVersion[0] = '\0'
+			selectedInstalledVersion[0] = '\0';
 		}
 
         g_free(name);
