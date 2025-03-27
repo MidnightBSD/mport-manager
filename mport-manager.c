@@ -1257,10 +1257,11 @@ create_installed_tree(void)
 	GtkTreeViewColumn *column;
 	GtkCellRenderer *renderer;
 
-	store = gtk_tree_store_new(INST_N_COLUMNS,
-	                           G_TYPE_STRING,
-	                           G_TYPE_STRING,
-							   G_TYPE_STRING);
+    store = gtk_tree_store_new(INST_N_COLUMNS,
+		G_TYPE_STRING,  // INST_TITLE_COLUMN
+		G_TYPE_STRING,  // INST_VERSION_COLUMN
+		G_TYPE_STRING,  // INST_FLATSIZE_COLUMN
+		G_TYPE_STRING); // INST_LOCK_STATUS_COLUMN
 
 	populate_installed_packages(store);
 
@@ -1458,8 +1459,6 @@ populate_installed_packages(GtkTreeStore *store)
 						   INST_FLATSIZE_COLUMN, flatsize_str,
 						   INST_LOCK_STATUS_COLUMN, lock_status,
 		                   -1);
-
-		packs++;
 	}
 
 	mport_pkgmeta_vec_free(packs);
