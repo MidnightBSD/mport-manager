@@ -1026,9 +1026,11 @@ install(mportInstance *mport, const char *packageName)
 	}
 
 	// Perform the actual installation
-	g_print("Installing package: %s version: %s\n", (*indexEntry)->pkgname, (*indexEntry)->version);
+	g_print("Starting installation of package: %s version: %s\n", (*indexEntry)->pkgname, (*indexEntry)->version);
  
+	g_print("Calling install_depends...\n");
 	resultCode = install_depends(mport, (*indexEntry)->pkgname, (*indexEntry)->version, MPORT_EXPLICIT);
+	g_print("install_depends returned with code: %d\n", resultCode);
 
 	if (resultCode != MPORT_OK)
 	{
@@ -1055,6 +1057,7 @@ install(mportInstance *mport, const char *packageName)
 		gtk_widget_destroy(dialog);
 	}
 
+	g_print("Freeing index entries...\n");
 	mport_index_entry_free_vec(indexEntry);
 
 	g_print("Finished installation process for package: %s\n", packageName);
@@ -1079,28 +1082,38 @@ install_depends(mportInstance *mport, const char *packageName, const char *versi
         }
 
         if (packs == NULL && depends == NULL) {
+			g_print("No existing package or dependencies, installing directly...\n");
+     
                 /* Package is not installed and there are no dependencies */
                 if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
                         msgbox(GTK_WINDOW(window), mport_err_string());
                         return mport_err_code();
                 }
         } else if (packs == NULL) {
+			g_print("Installing dependencies...\n");
                 /* Package is not installed */
                 while (*depends != NULL) {
+					g_print("Installing dependency: %s version: %s\n", (*depends)->d_pkgname, (*depends)->d_version);
+          
                         install_depends(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC);
                         depends++;
                 }
+				g_print("Installing main package...\n");
                 if (mport_install(mport, packageName, version, NULL, MPORT_EXPLICIT) != MPORT_OK) {
+					g_warning("Main package installation failed: %s", mport_err_string());
+          
                         msgbox(GTK_WINDOW(window), mport_err_string());
                         return mport_err_code();
                 }
                 mport_index_depends_free_vec(depends);
         } else {
                 /* already installed */
+				g_print("Package already installed\n");
                 mport_pkgmeta_vec_free(packs);
                 mport_index_depends_free_vec(depends);
         }
 
+		g_print("Exiting install_depends for package: %s\n", packageName);
         return (MPORT_OK);
 }
 
