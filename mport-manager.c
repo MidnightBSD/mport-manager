@@ -1441,26 +1441,28 @@ populate_installed_packages(GtkTreeStore *store)
 		exit(1);
 	}
 
-	while (*packs != NULL) {
+	for (mportPackageMeta **pack = packs; pack && *pack; pack++) {
 		GtkTreeIter iter;
 		gtk_tree_store_append(store, &iter, NULL);
 
-		if (humanize_number(flatsize_str, sizeof(flatsize_str), (*packs)->flatsize, "B",
+		if (humanize_number(flatsize_str, sizeof(flatsize_str), (*pack)->flatsize, "B",
 			HN_AUTOSCALE, HN_DECIMAL | HN_IEC_PREFIXES) < 0) {
-			snprintf(flatsize_str, sizeof(flatsize_str), "%lld B", (long long)(*packs)->flatsize);
+			snprintf(flatsize_str, sizeof(flatsize_str), "%lld B", (long long)(*pack)->flatsize);
 		}
 
-		const char *lock_status = (mport_lock_islocked(*packs) == MPORT_LOCKED) ? "Locked" : "Unlocked";
+		const char *lock_status = (mport_lock_islocked(*pack) == MPORT_LOCKED) ? "Locked" : "Unlocked";
 
 		gtk_tree_store_set(store, &iter,
-		                   INST_TITLE_COLUMN, (*packs)->name,
-		                   INST_VERSION_COLUMN, (*packs)->version,
+		                   INST_TITLE_COLUMN, (*pack)->name ? (*pack)->name : "",
+		                   INST_VERSION_COLUMN, (*pack)->version ? (*pack)->version : "",
 						   INST_FLATSIZE_COLUMN, flatsize_str,
 						   INST_LOCK_STATUS_COLUMN, lock_status,
 		                   -1);
 
 		packs++;
 	}
+
+	mport_pkgmeta_vec_free(packs);
 }
 
 static void
