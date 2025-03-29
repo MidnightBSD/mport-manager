@@ -168,6 +168,11 @@ main(int argc, char *argv[])
 		err(EXIT_FAILURE, "setenv() failed");
 	setlocale(LC_ALL, "");
 
+	// hint to libmport to act differently depending on whether we're in a GUI or console context
+	// used to avoid stopping services until triggers can be implemented.
+	if (setenv("MPORT_GUI", "1", 1) == -1)
+		err(EXIT_FAILURE, "setenv() failed");
+
 	mport = mport_instance_new();
 	if (mport == NULL) {
 		errx(EXIT_FAILURE, "mport_instance_new() failed");
