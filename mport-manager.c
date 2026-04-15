@@ -138,7 +138,6 @@ static mportPackageMeta** lookup_for_lock(mportInstance *mport, const char *pack
 
 // mport stuff
 static int delete(const char *);
-static int indexCheck(mportInstance *, mportPackageMeta *);
 static int install(mportInstance *, const char *);
 static int install_depends(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
@@ -218,11 +217,11 @@ main(int argc, char *argv[])
 	mport->force = false;
 
 	/* Setup callbacks */
-	mport->msg_cb = &mport_gtk_msg_cb;
-	mport->confirm_cb = &mport_gtk_confirm_cb;
-	mport->progress_init_cb = &mport_gtk_progress_init_cb;
-	mport->progress_step_cb = &mport_gtk_progress_step_cb;
-	mport->progress_free_cb = &mport_gtk_progress_free_cb;
+	mport_set_msg_cb(mport, &mport_gtk_msg_cb);
+	mport_set_confirm_cb(mport, &mport_gtk_confirm_cb);
+	mport_set_progress_init_cb(mport, &mport_gtk_progress_init_cb);
+	mport_set_progress_step_cb(mport, &mport_gtk_progress_step_cb);
+	mport_set_progress_free_cb(mport, &mport_gtk_progress_free_cb);
 
 	if (mport_index_load(mport) != MPORT_OK) {
 		mport_instance_free(mport);
@@ -615,7 +614,7 @@ refresh_stats(void)
 	gtk_label_set_text(GTK_LABEL(stats.labelDiskSpaceOccupied), flatsize_str);
 	gtk_label_set_text(GTK_LABEL(stats.labelPackagesAvailable), available_str);
 
-	free(s);
+	mport_stats_free(s);
 }
 
 
@@ -812,35 +811,6 @@ update_button_clicked(GtkButton *button, GtkWindow *parent)
 	refresh_stats();
 }
 
-int
-indexCheck(mportInstance *mport, mportPackageMeta *pack)
-{
-	mportIndexEntry **indexEntries;
-	int ret = 0;
-
-	if (mport_index_lookup_pkgname(mport, pack->name, &indexEntries) != MPORT_OK) {
-		char *msg;
-		if (asprintf(&msg, "Error looking up package name %s: %s\n", pack->name, mport_err_string()) != -1) {
-			(mport->msg_cb)(msg);
-			free(msg);
-		}
-		return (0);
-	}
-
-	if (indexEntries != NULL) {
-		mportIndexEntry **indexEntriesHead = indexEntries;
-		while (*indexEntries != NULL) {
-			if ((*indexEntries)->version != NULL && mport_version_cmp(pack->version, (*indexEntries)->version) < 0) {
-				ret = 1;
-				break;
-			}
-			indexEntries++;
-		}
-		mport_index_entry_free_vec(indexEntriesHead);
-	}
-
-	return (ret);
-}
 
 mportIndexEntry **
 lookupIndex(mportInstance *mport, const char *packageName)
@@ -1433,7 +1403,7 @@ search_remote_index(GtkTreeStore *store, const char *query)
 		return;
 	}
 
-	if (mport_index_search(mport, &packs, "pkg glob %Q or comment glob %Q", query, query) != MPORT_OK) {
+	if (mport_index_search_term(mport, &packs, (char *)query) != MPORT_OK) {
 		warnx("%s", mport_err_string());
 		mport_instance_free(mport);
 		exit(1);
