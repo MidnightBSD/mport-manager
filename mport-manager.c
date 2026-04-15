@@ -521,13 +521,15 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 
 		if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
 			char *msg;
-			asprintf(&msg, "Error looking up package name %s: %s\n", name, mport_err_string());
-			(mport->msg_cb)(msg);
-			free(msg);
+			if (asprintf(&msg, "Error looking up package name %s: %s\n", name, mport_err_string()) != -1) {
+				(mport->msg_cb)(msg);
+				free(msg);
+			}
 			return;
 		}
 
 		if (indexEntries != NULL) {
+			mportIndexEntry **indexEntriesHead = indexEntries;
 			while (*indexEntries != NULL) {
 				if ((*indexEntries)->version != NULL && mport_version_cmp(version, (*indexEntries)->version) == 0) {
 
@@ -541,7 +543,7 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 				}
 				indexEntries++;
 			}
-			mport_index_entry_free_vec(indexEntries);
+			mport_index_entry_free_vec(indexEntriesHead);
 		}
 
 #if defined(DEBUG)
@@ -813,13 +815,15 @@ indexCheck(mportInstance *mport, mportPackageMeta *pack)
 
 	if (mport_index_lookup_pkgname(mport, pack->name, &indexEntries) != MPORT_OK) {
 		char *msg;
-		asprintf(&msg,"Error looking up package name %s: %s\n", pack->name, mport_err_string());
-		(mport->msg_cb)(msg);
-		free(msg);
+		if (asprintf(&msg, "Error looking up package name %s: %s\n", pack->name, mport_err_string()) != -1) {
+			(mport->msg_cb)(msg);
+			free(msg);
+		}
 		return (0);
 	}
 
 	if (indexEntries != NULL) {
+		mportIndexEntry **indexEntriesHead = indexEntries;
 		while (*indexEntries != NULL) {
 			if ((*indexEntries)->version != NULL && mport_version_cmp(pack->version, (*indexEntries)->version) < 0) {
 				ret = 1;
@@ -827,7 +831,7 @@ indexCheck(mportInstance *mport, mportPackageMeta *pack)
 			}
 			indexEntries++;
 		}
-		mport_index_entry_free_vec(indexEntries);
+		mport_index_entry_free_vec(indexEntriesHead);
 	}
 
 	return (ret);
@@ -959,11 +963,13 @@ static int
 install(mportInstance *mport, const char *packageName)
 {
 	mportIndexEntry **indexEntry;
+	mportIndexEntry **indexEntryHead;
 	mportIndexEntry **i2;
 	int resultCode = MPORT_OK;
 	int item;
 
 	indexEntry = lookupIndex(mport, packageName);
+	indexEntryHead = indexEntry;
 	if (indexEntry == NULL || *indexEntry == NULL)
 	{
 		g_warning("Package %s not found in the index.", packageName);
@@ -1020,7 +1026,7 @@ install(mportInstance *mport, const char *packageName)
 		else
 		{
 			gtk_widget_destroy(dialog);
-			mport_index_entry_free_vec(indexEntry);
+			mport_index_entry_free_vec(indexEntryHead);
 			return MPORT_ERR_WARN;
 		}
 
@@ -1063,7 +1069,7 @@ install(mportInstance *mport, const char *packageName)
 	}
 
 	g_print("Freeing index entries...\n");
-	mport_index_entry_free_vec(indexEntry);
+	mport_index_entry_free_vec(indexEntryHead);
 
 	g_print("Finished installation process for package: %s\n", packageName);
 
