@@ -713,7 +713,7 @@ create_detail_box(GtkWidget *parent)
 	detail.labelName = gtk_label_new("");
 	detail.labelLicense = gtk_label_new("");
 	detail.labelType = gtk_label_new("");
-	detail.image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
+	detail.image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_INVALID);
 	gtk_image_set_pixel_size(GTK_IMAGE(detail.image), 48); 
 
 	// setup  left label area
@@ -1207,7 +1207,7 @@ msgbox(GtkWindow *parent, const char *msg)
 	gtk_dialog_add_button(GTK_DIALOG(dialog), "_OK", GTK_RESPONSE_ACCEPT);
 
 	label = gtk_label_new(msg);
-	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
+	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_INVALID);
 	gtk_image_set_pixel_size(GTK_IMAGE(image), 48); 
 
 	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
@@ -1238,7 +1238,7 @@ msgbox_bool(GtkWindow *parent, const char *msg)
 	   gtk_dialog_add_button(GTK_DIALOG(dialog), "_No", GTK_RESPONSE_REJECT);
 
 	label = gtk_label_new(msg);
-	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_DIALOG);
+	image = gtk_image_new_from_icon_name("dialog-information", GTK_ICON_SIZE_INVALID);
 	gtk_image_set_pixel_size(GTK_IMAGE(image), 48); 
 
 	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
@@ -1290,8 +1290,7 @@ setup_tree(void) {
 
 	store = gtk_tree_store_new(N_COLUMNS,
 	                           G_TYPE_STRING,
-	                           G_TYPE_STRING,
-	                           G_TYPE_BOOLEAN);
+	                           G_TYPE_STRING);
 
 	populate_remote_index(store);
 
@@ -1399,14 +1398,15 @@ create_update_tree(void)
 	                                                  NULL);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(updateTree), column);
 
-
 	/* VERSION */
+	renderer = gtk_cell_renderer_text_new();
 	column = gtk_tree_view_column_new_with_attributes("Installed Version", renderer,
 	                                                  "text", UPD_VERSION_COLUMN,
 	                                                  NULL);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(updateTree), column);
 
 	/* OS RELEASE */
+	renderer = gtk_cell_renderer_text_new();
 	column = gtk_tree_view_column_new_with_attributes("OS", renderer,
 	                                                  "text", UPD_OS_RELEASE_COLUMN,
 	                                                  NULL);
