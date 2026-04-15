@@ -233,7 +233,7 @@ main(int argc, char *argv[])
 		"Unable to load updates index");
 		gtk_dialog_run(GTK_DIALOG(dialog));
 		gtk_widget_destroy(dialog);
-		gtk_main_quit();
+		exit(1);
 	}
 
 	// create search button
@@ -1092,10 +1092,14 @@ install_depends(mportInstance *mport, const char *packageName, const char *versi
         if (packageName == NULL || version == NULL)
                 return (MPORT_ERR_FATAL);
 
-        mport_index_depends_list(mport, packageName, version, &depends);
+        if (mport_index_depends_list(mport, packageName, version, &depends) != MPORT_OK) {
+                msgbox(GTK_WINDOW(window), mport_err_string());
+                return mport_err_code();
+        }
 
         if (mport_pkgmeta_search_master(mport, &packs, "pkg=%Q", packageName) != MPORT_OK) {
                 msgbox(GTK_WINDOW(window), mport_err_string());
+                mport_index_depends_free_vec(depends);
                 return mport_err_code();
         }
 
@@ -1422,6 +1426,7 @@ static void
 search_remote_index(GtkTreeStore *store, const char *query)
 {
 	mportIndexEntry **packs;
+	mportIndexEntry **packsHead;
 
 	if (query == NULL || query[0] == '\0') {
 		populate_remote_index(store);
@@ -1433,6 +1438,7 @@ search_remote_index(GtkTreeStore *store, const char *query)
 		mport_instance_free(mport);
 		exit(1);
 	}
+	packsHead = packs;
 
 	while (*packs != NULL) {
 		GtkTreeIter iter;
@@ -1443,6 +1449,8 @@ search_remote_index(GtkTreeStore *store, const char *query)
 		                   -1);
 		packs++;
 	}
+
+	mport_index_entry_free_vec(packsHead);
 }
 
 static void
@@ -1667,7 +1675,7 @@ lock(mportInstance *mport, const char *packageName)
 
 	if (packs != NULL) {
 		mport_lock_lock(mport, (*packs));
-		mport_pkgmeta_free(*packs);
+		mport_pkgmeta_vec_free(packs);
 		return (MPORT_OK);
 	}
 
@@ -1681,7 +1689,7 @@ unlock(mportInstance *mport, const char *packageName)
 
 	if (packs != NULL) {
 		mport_lock_unlock(mport, (*packs));
-		mport_pkgmeta_free(*packs);
+		mport_pkgmeta_vec_free(packs);
 		return (MPORT_OK);
 	}
 
