@@ -1440,6 +1440,11 @@ search_remote_index(GtkTreeStore *store, const char *query)
 	}
 	packsHead = packs;
 
+	if (tree != NULL) {
+		g_object_ref(store);
+		gtk_tree_view_set_model(GTK_TREE_VIEW(tree), NULL);
+	}
+
 	while (*packs != NULL) {
 		GtkTreeIter iter;
 		gtk_tree_store_append(store, &iter, NULL);
@@ -1448,6 +1453,11 @@ search_remote_index(GtkTreeStore *store, const char *query)
 		                   VERSION_COLUMN, (*packs)->version,
 		                   -1);
 		packs++;
+	}
+
+	if (tree != NULL) {
+		gtk_tree_view_set_model(GTK_TREE_VIEW(tree), GTK_TREE_MODEL(store));
+		g_object_unref(store);
 	}
 
 	mport_index_entry_free_vec(packsHead);
@@ -1476,37 +1486,48 @@ populate_remote_index(GtkTreeStore *store)
 	}
 	packsHead = packs;
 
+	/* Build a hash set of "name\tversion" for installed packages so the
+	 * outer loop can do O(1) lookups instead of an O(m) linear scan. */
+	GHashTable *installed_set = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+	while (*packs != NULL) {
+		gchar *key = g_strdup_printf("%s\t%s", (*packs)->name, (*packs)->version);
+		g_hash_table_insert(installed_set, key, GINT_TO_POINTER(1));
+		packs++;
+	}
+
+	/* Detach model from view during bulk insert to suppress per-row redraws. */
+	if (tree != NULL) {
+		g_object_ref(store);
+		gtk_tree_view_set_model(GTK_TREE_VIEW(tree), NULL);
+	}
+
 	while (*indexEntries != NULL) {
 		GtkTreeIter iter;
-		gboolean installed = FALSE;
+		gchar *key = g_strdup_printf("%s\t%s", (*indexEntries)->pkgname, (*indexEntries)->version);
+		gboolean installed = g_hash_table_lookup(installed_set, key) != NULL;
+		g_free(key);
 
 #ifdef DEBUG
 		g_print("Working on %s\n", (*indexEntries)->pkgname);
 #endif
 
-		mportPackageMeta **p2 = packs;
-		while (*p2 != NULL) {
-			if ((strcmp((*indexEntries)->pkgname, (*p2)->name) == 0) &&
-			    (strcmp((*indexEntries)->version, (*p2)->version) == 0)) {
-				installed = TRUE;
-				break;
-			}
-
-			p2++;
-		}
-
 		if (!installed) {
 			gtk_tree_store_append(store, &iter, NULL);
-
 			gtk_tree_store_set(store, &iter,
-		                   TITLE_COLUMN, (*indexEntries)->pkgname,
-		                   VERSION_COLUMN, (*indexEntries)->version,
-		                   -1);
+			                   TITLE_COLUMN, (*indexEntries)->pkgname,
+			                   VERSION_COLUMN, (*indexEntries)->version,
+			                   -1);
 		}
 
 		indexEntries++;
 	}
 
+	if (tree != NULL) {
+		gtk_tree_view_set_model(GTK_TREE_VIEW(tree), GTK_TREE_MODEL(store));
+		g_object_unref(store);
+	}
+
+	g_hash_table_destroy(installed_set);
 	mport_index_entry_free_vec(indexEntriesHead);
 	mport_pkgmeta_vec_free(packsHead);
 }
@@ -1535,9 +1556,14 @@ populate_installed_packages(GtkTreeStore *store)
         return;
     }
 
+	if (installedTree != NULL) {
+		g_object_ref(store);
+		gtk_tree_view_set_model(GTK_TREE_VIEW(installedTree), NULL);
+	}
+
 	for (mportPackageMeta **pack = packs; pack && *pack; pack++) {
 		GtkTreeIter iter;
-		 
+
         g_print("Processing package: %s\n", (*pack)->name ? (*pack)->name : "NULL");
 
 		gtk_tree_store_append(store, &iter, NULL);
@@ -1562,6 +1588,11 @@ populate_installed_packages(GtkTreeStore *store)
 						   INST_FLATSIZE_COLUMN, flatsize_str,
 						   INST_LOCK_STATUS_COLUMN, lock_status,
 		                   -1);
+	}
+
+	if (installedTree != NULL) {
+		gtk_tree_view_set_model(GTK_TREE_VIEW(installedTree), GTK_TREE_MODEL(store));
+		g_object_unref(store);
 	}
 
 	g_print("Finished populate_installed_packages\n");
@@ -1592,6 +1623,11 @@ populate_update_packages(GtkTreeStore *store)
 
 	g_debug("OS Release: %s", os_release);
 
+	if (updateTree != NULL) {
+		g_object_ref(store);
+		gtk_tree_view_set_model(GTK_TREE_VIEW(updateTree), NULL);
+	}
+
 	for (mportPackageMeta **pack = packs; pack && *pack; pack++) {
 		mportIndexEntry **indexEntries = NULL;
 
@@ -1603,14 +1639,14 @@ populate_update_packages(GtkTreeStore *store)
             continue;
         }
 
-        if (indexEntries == NULL || *indexEntries == NULL) 
+        if (indexEntries == NULL || *indexEntries == NULL)
 		{
             g_debug("No index entries for package: %s", (*pack)->name);
             continue;
         }
 
 		for (mportIndexEntry **entry = indexEntries; entry && *entry; entry++) {
-			if ((*entry)->version == NULL) 
+			if ((*entry)->version == NULL)
 			{
                 g_warning("Null version for package: %s", (*pack)->name);
                 continue;
@@ -1630,7 +1666,7 @@ populate_update_packages(GtkTreeStore *store)
 				gtk_tree_store_set(store, &iter,
 								   UPD_TITLE_COLUMN, (*pack)->name,
 								   UPD_VERSION_COLUMN, (*pack)->version,
-								   UPD_OS_RELEASE_COLUMN, (*pack)->os_release ? (*pack)->os_release : "",                           
+								   UPD_OS_RELEASE_COLUMN, (*pack)->os_release ? (*pack)->os_release : "",
 								   UPD_NEW_VERSION_COLUMN, (*entry)->version,
 								   -1);
 
@@ -1638,6 +1674,11 @@ populate_update_packages(GtkTreeStore *store)
 			}
 		}
 		mport_index_entry_free_vec(indexEntries);
+	}
+
+	if (updateTree != NULL) {
+		gtk_tree_view_set_model(GTK_TREE_VIEW(updateTree), GTK_TREE_MODEL(store));
+		g_object_unref(store);
 	}
 
 	g_debug("Finished populate_update_packages");
