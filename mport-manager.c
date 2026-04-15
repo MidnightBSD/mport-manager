@@ -1566,16 +1566,15 @@ populate_installed_packages(GtkTreeStore *store)
 
         g_print("Processing package: %s\n", (*pack)->name ? (*pack)->name : "NULL");
 
-		gtk_tree_store_append(store, &iter, NULL);
-
 		if ((*pack)->flatsize < 0) {
 			g_warning("Invalid flatsize for package: %s", (*pack)->name);
             snprintf(flatsize_str, sizeof(flatsize_str), "Unknown");
-            continue;
         } else if (humanize_number(flatsize_str, sizeof(flatsize_str), (*pack)->flatsize, "B",
 			HN_AUTOSCALE, HN_DECIMAL | HN_IEC_PREFIXES) < 0) {
 			snprintf(flatsize_str, sizeof(flatsize_str), "%lld B", (long long)(*pack)->flatsize);
 		}
+
+		gtk_tree_store_append(store, &iter, NULL);
 
 		const char *lock_status = (mport_lock_islocked(*pack) == MPORT_LOCKED) ? "Locked" : "Unlocked";
 
