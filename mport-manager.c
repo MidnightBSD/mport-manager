@@ -153,6 +153,8 @@ static void create_detail_box(GtkWidget *parent);
 static void create_stats_box(GtkWidget *parent);
 static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 static void installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
+static void available_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
+static void installed_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
 void reset_progress_bar(void);
 static void lock_button_clicked(GtkButton *button, GtkWidget *parent);
 static void unlock_button_clicked(GtkButton *button, GtkWidget *parent);
@@ -495,26 +497,40 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
 		if (name && version) {
 			selectedInstalled[0] = '\0';
 			selectedInstalledVersion[0] = '\0';
-            if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
-                g_warning("Error looking up package name %s: %s", name, mport_err_string());
-            } else if (indexEntries != NULL) {
-                for (mportIndexEntry **entry = indexEntries; entry!=NULL && *entry != NULL; entry++) {
-                    if ((*entry)->version != NULL && mport_version_cmp(version, (*entry)->version) == 0) {
-                        g_strlcpy(selectedInstalled, name, sizeof(selectedInstalled));
+			if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
+				g_warning("Error looking up package name %s: %s", name, mport_err_string());
+			} else if (indexEntries != NULL) {
+				for (mportIndexEntry **entry = indexEntries; entry != NULL && *entry != NULL; entry++) {
+					if ((*entry)->version != NULL && mport_version_cmp(version, (*entry)->version) == 0) {
+						g_strlcpy(selectedInstalled, name, sizeof(selectedInstalled));
 						g_strlcpy(selectedInstalledVersion, version, sizeof(selectedInstalledVersion));
-                        break;
-                    }
-                }
-                mport_index_entry_free_vec(indexEntries);
-            }
-        } else {
+						break;
+					}
+				}
+				mport_index_entry_free_vec(indexEntries);
+			}
+		} else {
 			selectedInstalled[0] = '\0';
 			selectedInstalledVersion[0] = '\0';
 		}
 
-        g_free(name);
-        g_free(version);
+		g_free(name);
+		g_free(version);
 	}
+}
+
+static void
+installed_cursor_changed_handler(GtkTreeView *treeView, gpointer data)
+{
+	GtkTreePath *path = NULL;
+	GtkTreeViewColumn *column = NULL;
+
+	gtk_tree_view_get_cursor(treeView, &path, &column);
+	if (path == NULL)
+		return;
+
+	installed_tree_available_row_click_handler(treeView, path, column, data);
+	gtk_tree_path_free(path);
 }
 
 
@@ -563,13 +579,27 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 			mport_index_entry_free_vec(indexEntriesHead);
 		}
 
-#if defined(DEBUG)
-		g_print ("The row containing the name '%s' has been double-clicked.\n", name);
-#endif
+	#if defined(DEBUG)
+			g_print ("The row containing the name '%s' has been double-clicked.\n", name);
+	#endif
 
-		g_free(name);
-		g_free(version);
+			g_free(name);
+			g_free(version);
+		}
 	}
+
+static void
+available_cursor_changed_handler(GtkTreeView *treeView, gpointer data)
+{
+	GtkTreePath *path = NULL;
+	GtkTreeViewColumn *column = NULL;
+
+	gtk_tree_view_get_cursor(treeView, &path, &column);
+	if (path == NULL)
+		return;
+
+	available_row_click_handler(treeView, path, column, data);
+	gtk_tree_path_free(path);
 }
 
 /**
@@ -1300,7 +1330,7 @@ setup_tree(void) {
 
 	tree = gtk_tree_view_new_with_model(GTK_TREE_MODEL(store));
 	g_object_unref(G_OBJECT(store));
-	gtk_tree_view_set_activate_on_single_click(GTK_TREE_VIEW(tree), true);
+	gtk_tree_view_set_activate_on_single_click(GTK_TREE_VIEW(tree), false);
 
 	renderer = gtk_cell_renderer_text_new();
 	column = gtk_tree_view_column_new_with_attributes("Title",
@@ -1317,8 +1347,8 @@ setup_tree(void) {
 
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tree), column);
 
-	g_signal_connect(G_OBJECT(tree), "row-activated",
-	                 G_CALLBACK(available_row_click_handler),
+	g_signal_connect(G_OBJECT(tree), "cursor-changed",
+	                 G_CALLBACK(available_cursor_changed_handler),
 	                 (gpointer)NULL);
 }
 
@@ -1339,7 +1369,7 @@ create_installed_tree(void)
 
 	installedTree = gtk_tree_view_new_with_model(GTK_TREE_MODEL(store));
 	g_object_unref(G_OBJECT(store));
-	gtk_tree_view_set_activate_on_single_click(GTK_TREE_VIEW(installedTree), true);
+	gtk_tree_view_set_activate_on_single_click(GTK_TREE_VIEW(installedTree), false);
 
 	renderer = gtk_cell_renderer_text_new();
 	column = gtk_tree_view_column_new_with_attributes("Title",
@@ -1367,8 +1397,8 @@ create_installed_tree(void)
                                                       NULL);
     gtk_tree_view_append_column(GTK_TREE_VIEW(installedTree), column);
 
-	g_signal_connect(G_OBJECT(installedTree), "row-activated",
-	                 G_CALLBACK(installed_tree_available_row_click_handler),
+	g_signal_connect(G_OBJECT(installedTree), "cursor-changed",
+	                 G_CALLBACK(installed_cursor_changed_handler),
 	                 (gpointer)NULL);
 }
 
