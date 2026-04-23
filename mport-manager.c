@@ -1,5 +1,5 @@
 /*-
- * Copyright (C) 2008, 2016 Lucas Holt. All rights reserved.
+ * Copyright (C) 2008, 2016, 2026 Lucas Holt. All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -112,12 +112,37 @@ static void update_button_clicked(GtkButton *button, GtkWindow *parent);
 static void install_button_clicked(GtkButton *button, GtkWidget *parent);
 static void installed_delete_button_clicked(GtkButton *button, GtkWidget *parent);
 static void msgbox(GtkWindow *parent, const char * msg);
+static void msgbox_modal(GtkWindow *parent, const char *title, const char *button_label, const char *msg);
 static bool msgbox_bool(GtkWindow *parent, const char *msg);
 static void cut_clicked (GtkButton *, GtkEditable *);
 static void copy_clicked (GtkButton *, GtkEditable *);
 static void paste_clicked (GtkButton *, GtkEditable *);
 static void setup_tree(void);
 static void create_installed_tree(void);
+
+static GtkWidget *
+create_app_icon_image(int pixel_size)
+{
+	const char *const icon_paths[] = {ICONFILE, "icon.png", NULL};
+
+	for (size_t i = 0; icon_paths[i] != NULL; i++) {
+		if (g_file_test(icon_paths[i], G_FILE_TEST_EXISTS)) {
+			GtkWidget *image = gtk_image_new_from_file(icon_paths[i]);
+			gtk_image_set_pixel_size(GTK_IMAGE(image), pixel_size);
+			return image;
+		}
+	}
+
+	GtkWidget *image = gtk_image_new_from_icon_name("dialog-information-symbolic");
+	gtk_image_set_pixel_size(GTK_IMAGE(image), pixel_size);
+	return image;
+}
+
+static void
+set_window_app_icon(GtkWindow *window)
+{
+	gtk_window_set_icon_name(window, "mport-manager");
+}
 static void create_update_tree(void);
 static void populate_installed_packages(GtkTreeStore *);
 static void populate_update_packages(GtkTreeStore *); 
@@ -799,14 +824,10 @@ lookupIndex(mportInstance *mport, const char *packageName)
 
 	if (mport_index_lookup_pkgname(mport, packageName, &indexEntries) != MPORT_OK)
 	{
-		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
-												   GTK_DIALOG_DESTROY_WITH_PARENT,
-												   GTK_MESSAGE_ERROR,
-												   GTK_BUTTONS_CLOSE,
-												   "Error looking up package name %s: %d %s\n",
-												   packageName, mport_err_code(), mport_err_string());
-		run_dialog_sync(GTK_DIALOG(dialog));
-		gtk_window_destroy(GTK_WINDOW(dialog));
+		g_autofree gchar *message = g_strdup_printf(
+			"Error looking up package name %s: %d %s\n",
+			packageName, mport_err_code(), mport_err_string());
+		msgbox_modal(GTK_WINDOW(window), "Error", "_Close", message);
 		g_application_quit(G_APPLICATION(g_application_get_default()));
 		return (NULL);
 	}
@@ -929,13 +950,10 @@ install(mportInstance *mport, const char *packageName)
 	if (indexEntry == NULL || *indexEntry == NULL)
 	{
 		g_warning("Package %s not found in the index.", packageName);
-		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
-												   GTK_DIALOG_DESTROY_WITH_PARENT,
-												   GTK_MESSAGE_ERROR,
-												   GTK_BUTTONS_CLOSE,
-												   "Package %s not found in the index.", packageName);
-		run_dialog_sync(GTK_DIALOG(dialog));
-		gtk_window_destroy(GTK_WINDOW(dialog));
+		g_autofree gchar *message = g_strdup_printf(
+			"Package %s not found in the index.",
+			packageName);
+		msgbox_modal(GTK_WINDOW(window), "Error", "_Close", message);
 		return MPORT_ERR_WARN;
 	}
 
@@ -948,11 +966,12 @@ install(mportInstance *mport, const char *packageName)
 		int choice = 0;
 
 		dialog = gtk_dialog_new_with_buttons("Select Package",
-			GTK_WINDOW(window),
-			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-			"_OK", GTK_RESPONSE_ACCEPT,
-			"_Cancel", GTK_RESPONSE_CANCEL,
-			NULL);
+		                                     GTK_WINDOW(window),
+		                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+		                                     "_OK", GTK_RESPONSE_ACCEPT,
+		                                     "_Cancel", GTK_RESPONSE_CANCEL,
+		                                     NULL);
+		set_window_app_icon(GTK_WINDOW(dialog));
 
 		content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
 		combo_box = gtk_combo_box_text_new();
@@ -1002,25 +1021,18 @@ install(mportInstance *mport, const char *packageName)
 	{
 		g_warning("Failed to install package %s: %s", packageName, mport_err_string());
      
-		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
-												   GTK_DIALOG_DESTROY_WITH_PARENT,
-												   GTK_MESSAGE_ERROR,
-												   GTK_BUTTONS_CLOSE,
-												   "Failed to install package %s: %s",
-												   packageName, mport_err_string());
-		run_dialog_sync(GTK_DIALOG(dialog));
-		gtk_window_destroy(GTK_WINDOW(dialog));
+		g_autofree gchar *message = g_strdup_printf(
+			"Failed to install package %s: %s",
+			packageName, mport_err_string());
+		msgbox_modal(GTK_WINDOW(window), "Error", "_Close", message);
 	}
 	else
 	{
 		g_print("Successfully installed package %s\n", packageName);
-		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
-												   GTK_DIALOG_DESTROY_WITH_PARENT,
-												   GTK_MESSAGE_INFO,
-												   GTK_BUTTONS_CLOSE,
-												   "Successfully installed package %s", packageName);
-		run_dialog_sync(GTK_DIALOG(dialog));
-		gtk_window_destroy(GTK_WINDOW(dialog));
+		g_autofree gchar *message = g_strdup_printf(
+			"Successfully installed package %s",
+			packageName);
+		msgbox_modal(GTK_WINDOW(window), "Information", "_OK", message);
 	}
 
 	g_print("Freeing index entries...\n");
@@ -1106,24 +1118,15 @@ delete(const char *packageName)
         return MPORT_ERR_FATAL;
     }
 
-    if (packs == NULL || *packs == NULL) {
-        GtkWidget *dialog;
-        gchar *message;
-
-        message = g_strdup_printf("No packages installed matching '%s'", packageName);
+	if (packs == NULL || *packs == NULL) {
+		g_autofree gchar *message = g_strdup_printf(
+			"No packages installed matching '%s'",
+			packageName);
 		g_print("%s\n", message);
-        dialog = gtk_message_dialog_new(GTK_WINDOW(window),
-                                        GTK_DIALOG_DESTROY_WITH_PARENT,
-                                        GTK_MESSAGE_ERROR,
-                                        GTK_BUTTONS_CLOSE,
-                                        "%s", message);
-        
-        run_dialog_sync(GTK_DIALOG(dialog));
-        gtk_window_destroy(GTK_WINDOW(dialog));
-        g_free(message);
-        
-        return MPORT_ERR_WARN;
-    }
+		msgbox_modal(GTK_WINDOW(window), "Error", "_Close", message);
+		
+		return MPORT_ERR_WARN;
+	}
 
 	for (mportPackageMeta **pack = packs; *pack != NULL; pack++) {
 		(*pack)->action = MPORT_ACTION_DELETE;
@@ -1152,10 +1155,10 @@ msgbox(GtkWindow *parent, const char *msg)
 										 parent, GTK_DIALOG_DESTROY_WITH_PARENT,
 										 "_OK", GTK_RESPONSE_ACCEPT,
 										 NULL);
+	set_window_app_icon(GTK_WINDOW(dialog));
 
 	label = gtk_label_new(msg);
-	image = gtk_image_new_from_icon_name("dialog-information");
-	gtk_image_set_pixel_size(GTK_IMAGE(image), 48); 
+	image = create_app_icon_image(48);
 
 	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 	gtk_widget_set_margin_start(hbox, 10);
@@ -1170,6 +1173,37 @@ msgbox(GtkWindow *parent, const char *msg)
 	g_signal_connect(G_OBJECT(dialog), "response",
 	                 G_CALLBACK(gtk_window_destroy), NULL);
 	gtk_window_present(GTK_WINDOW(dialog));
+}
+
+static void
+msgbox_modal(GtkWindow *parent, const char *title, const char *button_label, const char *msg)
+{
+	GtkWidget *dialog, *label, *image, *hbox;
+
+	dialog = gtk_dialog_new_with_buttons(title,
+	                                     parent,
+	                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+	                                     button_label, GTK_RESPONSE_ACCEPT,
+	                                     NULL);
+	set_window_app_icon(GTK_WINDOW(dialog));
+
+	label = gtk_label_new(msg);
+	image = create_app_icon_image(48);
+	gtk_label_set_wrap(GTK_LABEL(label), TRUE);
+	gtk_label_set_xalign(GTK_LABEL(label), 0.0f);
+
+	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+	gtk_widget_set_margin_start(hbox, 10);
+	gtk_widget_set_margin_end(hbox, 10);
+	gtk_widget_set_margin_top(hbox, 10);
+	gtk_widget_set_margin_bottom(hbox, 10);
+	gtk_box_append(GTK_BOX(hbox), image);
+	gtk_box_append(GTK_BOX(hbox), label);
+
+	gtk_box_append(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), hbox);
+
+	run_dialog_sync(GTK_DIALOG(dialog));
+	gtk_window_destroy(GTK_WINDOW(dialog));
 }
 
 static void
@@ -1209,10 +1243,10 @@ msgbox_bool(GtkWindow *parent, const char *msg)
 										 "_Yes", GTK_RESPONSE_ACCEPT,
 										 "_No", GTK_RESPONSE_REJECT,
 										 NULL);
+	set_window_app_icon(GTK_WINDOW(dialog));
 
 	label = gtk_label_new(msg);
-	image = gtk_image_new_from_icon_name("dialog-information");
-	gtk_image_set_pixel_size(GTK_IMAGE(image), 48); 
+	image = create_app_icon_image(48);
 
 	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 	gtk_widget_set_margin_start(hbox, 10);
