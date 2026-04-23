@@ -117,6 +117,7 @@ static bool msgbox_bool(GtkWindow *parent, const char *msg);
 static void cut_clicked (GtkButton *, GtkEditable *);
 static void copy_clicked (GtkButton *, GtkEditable *);
 static void paste_clicked (GtkButton *, GtkEditable *);
+static int msgbox_select(GtkWindow *parent, const char *msg, mportIndexEntry **choices, int def);
 static void setup_tree(void);
 static void create_installed_tree(void);
 
@@ -172,6 +173,7 @@ static int unlock(mportInstance *mport, const char *packageName);
 /* Callbacks */
 void mport_gtk_msg_cb(const char *msg);
 int mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def);
+int mport_gtk_select_cb(const char *msg, mportIndexEntry **choices, int def);
 void mport_gtk_progress_init_cb(const char *title);
 void mport_gtk_progress_step_cb(int current, int total, const char *msg);
 void mport_gtk_progress_free_cb(void);
@@ -221,6 +223,7 @@ activate(GtkApplication *app, gpointer user_data)
 	/* Setup callbacks */
 	mport_set_msg_cb(mport, &mport_gtk_msg_cb);
 	mport_set_confirm_cb(mport, &mport_gtk_confirm_cb);
+	mport_set_select_cb(mport, &mport_gtk_select_cb);
 	mport_set_progress_init_cb(mport, &mport_gtk_progress_init_cb);
 	mport_set_progress_step_cb(mport, &mport_gtk_progress_step_cb);
 	mport_set_progress_free_cb(mport, &mport_gtk_progress_free_cb);
@@ -385,6 +388,12 @@ mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def)
 		return MPORT_OK;
 	else
 		return -1;
+}
+
+int
+mport_gtk_select_cb(const char *msg, mportIndexEntry **choices, int def)
+{
+	return msgbox_select(GTK_WINDOW(window), msg, choices, def);
 }
 
 void
@@ -1291,6 +1300,76 @@ msgbox_bool(GtkWindow *parent, const char *msg)
 	gint result = run_dialog_sync(GTK_DIALOG(dialog));
 	gtk_window_destroy(GTK_WINDOW(dialog));
 	return (result == GTK_RESPONSE_ACCEPT);
+}
+
+static int
+msgbox_select(GtkWindow *parent, const char *msg, mportIndexEntry **choices, int def)
+{
+	GtkWidget *dialog, *label, *image, *hbox, *content, *combo;
+	int count = 0;
+
+	if (choices == NULL)
+		return -1;
+
+	while (choices[count] != NULL)
+		count++;
+
+	if (count == 0)
+		return -1;
+
+	dialog = gtk_dialog_new_with_buttons("Select Package", parent,
+	    GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, NULL, NULL);
+	gtk_dialog_add_button(GTK_DIALOG(dialog), "_Cancel", GTK_RESPONSE_CANCEL);
+	gtk_dialog_add_button(GTK_DIALOG(dialog), "_OK", GTK_RESPONSE_ACCEPT);
+	set_window_app_icon(GTK_WINDOW(dialog));
+
+	content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+	image = create_app_icon_image(48);
+	label = gtk_label_new(msg);
+	gtk_label_set_xalign(GTK_LABEL(label), 0.0f);
+	gtk_label_set_wrap(GTK_LABEL(label), TRUE);
+
+	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+	gtk_widget_set_margin_start(hbox, 10);
+	gtk_widget_set_margin_end(hbox, 10);
+	gtk_widget_set_margin_top(hbox, 10);
+	gtk_widget_set_margin_bottom(hbox, 10);
+	gtk_box_append(GTK_BOX(hbox), image);
+	gtk_box_append(GTK_BOX(hbox), label);
+	gtk_box_append(GTK_BOX(content), hbox);
+
+	combo = gtk_combo_box_text_new();
+	for (int i = 0; i < count; i++) {
+		char *item = NULL;
+		if (asprintf(&item, "%s-%s - %s",
+		    choices[i]->pkgname == NULL ? "" : choices[i]->pkgname,
+		    choices[i]->version == NULL ? "" : choices[i]->version,
+		    choices[i]->comment == NULL ? "" : choices[i]->comment) == -1) {
+			item = NULL;
+		}
+		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), item == NULL ? "" : item);
+		free(item);
+	}
+
+	if (def >= 0 && def < count)
+		gtk_combo_box_set_active(GTK_COMBO_BOX(combo), def);
+	else
+		gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
+
+	gtk_widget_set_margin_start(combo, 10);
+	gtk_widget_set_margin_end(combo, 10);
+	gtk_widget_set_margin_bottom(combo, 10);
+	gtk_box_append(GTK_BOX(content), combo);
+
+	gint result = run_dialog_sync(GTK_DIALOG(dialog));
+	if (result == GTK_RESPONSE_ACCEPT) {
+		int selected = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
+		gtk_window_destroy(GTK_WINDOW(dialog));
+		return selected;
+	}
+
+	gtk_window_destroy(GTK_WINDOW(dialog));
+	return -1;
 }
 
 
