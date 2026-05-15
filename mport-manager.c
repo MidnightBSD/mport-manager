@@ -1020,10 +1020,14 @@ install(mportInstance *mport, const char *packageName)
 		while (*i2 != NULL)
 		{
 			char *package_info;
-			if (asprintf(&package_info, "%s-%s", (*i2)->pkgname, (*i2)->version) != -1) {
-				gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo_box), package_info);
-				free(package_info);
+			if (asprintf(&package_info, "%s-%s", (*i2)->pkgname, (*i2)->version) == -1)
+			{
+				gtk_window_destroy(GTK_WINDOW(dialog));
+				mport_index_entry_free_vec(indexEntryHead);
+				return MPORT_ERR_WARN;
 			}
+			gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo_box), package_info);
+			free(package_info);
 			item++;
 			i2++;
 		}
