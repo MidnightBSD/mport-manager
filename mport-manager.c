@@ -1779,6 +1779,12 @@ populate_update_packages(GtkTreeStore *store)
                 continue;
             }
 
+			if ((*pack)->version == NULL)
+			{
+				g_warning("Null installed version for package: %s", (*pack)->name);
+				continue;
+			}
+
 			int version_cmp = mport_version_cmp((*pack)->version, (*entry)->version);
 			int os_cmp = ((*pack)->os_release != NULL) ? mport_version_cmp((*pack)->os_release, os_release) : 0;
 
