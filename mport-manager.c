@@ -113,7 +113,7 @@ static void install_button_clicked(GtkButton *button, GtkWidget *parent);
 static void installed_delete_button_clicked(GtkButton *button, GtkWidget *parent);
 static void msgbox(GtkWindow *parent, const char * msg);
 static void msgbox_modal(GtkWindow *parent, const char *title, const char *button_label, const char *msg);
-static bool msgbox_bool(GtkWindow *parent, const char *msg);
+static bool msgbox_bool(GtkWindow *parent, const char *msg, const char *yes, const char *no, int def);
 static void cut_clicked (GtkButton *, GtkEditable *);
 static void copy_clicked (GtkButton *, GtkEditable *);
 static void paste_clicked (GtkButton *, GtkEditable *);
@@ -379,7 +379,7 @@ mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def)
 {
 	bool response;
 
-	response = msgbox_bool(GTK_WINDOW(window), msg);
+	response = msgbox_bool(GTK_WINDOW(window), msg, yes, no, def);
 	if (response)
 		return MPORT_OK;
 	else
@@ -1276,16 +1276,20 @@ run_dialog_sync(GtkDialog *dialog)
  * Create a modal dialog with Yes/No question
  */
 static bool
-msgbox_bool(GtkWindow *parent, const char *msg)
+msgbox_bool(GtkWindow *parent, const char *msg, const char *yes, const char *no, int def)
 {
 	GtkWidget *dialog, *label, *image, *hbox;
 
 	dialog = gtk_dialog_new_with_buttons("Question", parent,
-	                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,                     
-										 "_Yes", GTK_RESPONSE_ACCEPT,
-										 "_No", GTK_RESPONSE_REJECT,
+	                                     GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+	                                     yes != NULL ? yes : "_Yes", GTK_RESPONSE_ACCEPT,
+	                                     no != NULL ? no : "_No", GTK_RESPONSE_REJECT,
 										 NULL);
 	set_window_app_icon(GTK_WINDOW(dialog));
+	if (def == 0)
+		gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+	else if (def == 1)
+		gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_REJECT);
 
 	label = gtk_label_new(msg);
 	image = create_app_icon_image(48);
