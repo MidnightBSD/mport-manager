@@ -19,6 +19,7 @@ install:
 	install mport-manager ${DESTDIR}${PREFIX}/bin/mport-manager
 	mkdir -p ${DESTDIR}${DATADIR}
 	install -m 444 icon.png ${DESTDIR}${DATADIR}/icon.png
+	mkdir -p ${DESTDIR}${PREFIX}/share/icons/hicolor/48x48/apps
 	install -m 444 icon.png ${DESTDIR}${PREFIX}/share/icons/hicolor/48x48/apps/mport-manager.png
 	install -m 444 mport-manager.desktop ${DESTDIR}${PREFIX}/share/applications/
 
