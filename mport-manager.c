@@ -825,15 +825,15 @@ create_header_bar(GtkWidget *window, GtkWidget *search)
 	gtk_widget_add_css_class(edit_box, "linked");
 
 	GtkWidget *cut_btn = gtk_button_new_with_label("Cut");
-	g_signal_connect_swapped(cut_btn, "clicked", G_CALLBACK(cut_clicked), G_OBJECT(search));
+	g_signal_connect(cut_btn, "clicked", G_CALLBACK(cut_clicked), G_OBJECT(search));
 	gtk_box_append(GTK_BOX(edit_box), cut_btn);
 
 	GtkWidget *copy_btn = gtk_button_new_with_label("Copy");
-	g_signal_connect_swapped(copy_btn, "clicked", G_CALLBACK(copy_clicked), G_OBJECT(search));
+	g_signal_connect(copy_btn, "clicked", G_CALLBACK(copy_clicked), G_OBJECT(search));
 	gtk_box_append(GTK_BOX(edit_box), copy_btn);
 
 	GtkWidget *paste_btn = gtk_button_new_with_label("Paste");
-	g_signal_connect_swapped(paste_btn, "clicked", G_CALLBACK(paste_clicked), G_OBJECT(search));
+	g_signal_connect(paste_btn, "clicked", G_CALLBACK(paste_clicked), G_OBJECT(search));
 	gtk_box_append(GTK_BOX(edit_box), paste_btn);
 
 	gtk_header_bar_pack_end(GTK_HEADER_BAR(header_bar), edit_box);
