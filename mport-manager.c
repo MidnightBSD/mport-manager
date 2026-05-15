@@ -1754,6 +1754,8 @@ populate_update_packages(GtkTreeStore *store)
         if (indexEntries == NULL || *indexEntries == NULL)
 		{
             g_debug("No index entries for package: %s", (*pack)->name);
+			if (indexEntries != NULL)
+				mport_index_entry_free_vec(indexEntries);
             continue;
         }
 
