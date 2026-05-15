@@ -1605,10 +1605,14 @@ populate_remote_index(GtkTreeStore *store)
 	/* Build a hash set of "name\tversion" for installed packages so the
 	 * outer loop can do O(1) lookups instead of an O(m) linear scan. */
 	GHashTable *installed_set = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-	while (*packs != NULL) {
-		gchar *key = g_strdup_printf("%s\t%s", (*packs)->name, (*packs)->version);
-		g_hash_table_insert(installed_set, key, GINT_TO_POINTER(1));
-		packs++;
+	if (packs != NULL) {
+		while (*packs != NULL) {
+			if ((*packs)->name != NULL && (*packs)->version != NULL) {
+				gchar *key = g_strdup_printf("%s\t%s", (*packs)->name, (*packs)->version);
+				g_hash_table_insert(installed_set, key, GINT_TO_POINTER(1));
+			}
+			packs++;
+		}
 	}
 
 	/* Detach model from view during bulk insert to suppress per-row redraws. */
@@ -1619,19 +1623,25 @@ populate_remote_index(GtkTreeStore *store)
 
 	while (*indexEntries != NULL) {
 		GtkTreeIter iter;
-		gchar *key = g_strdup_printf("%s\t%s", (*indexEntries)->pkgname, (*indexEntries)->version);
-		gboolean installed = g_hash_table_lookup(installed_set, key) != NULL;
-		g_free(key);
+		const char *pkgname = (*indexEntries)->pkgname;
+		const char *version = (*indexEntries)->version;
+		gboolean installed = FALSE;
+
+		if (pkgname != NULL && version != NULL) {
+			gchar *key = g_strdup_printf("%s\t%s", pkgname, version);
+			installed = g_hash_table_lookup(installed_set, key) != NULL;
+			g_free(key);
+		}
 
 #ifdef DEBUG
 		g_print("Working on %s\n", (*indexEntries)->pkgname);
 #endif
 
-		if (!installed) {
+		if (!installed && pkgname != NULL && version != NULL) {
 			gtk_tree_store_append(store, &iter, NULL);
 			gtk_tree_store_set(store, &iter,
-			                   TITLE_COLUMN, (*indexEntries)->pkgname,
-			                   VERSION_COLUMN, (*indexEntries)->version,
+			                   TITLE_COLUMN, pkgname,
+			                   VERSION_COLUMN, version,
 			                   -1);
 		}
 
