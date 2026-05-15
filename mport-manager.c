@@ -1117,11 +1117,14 @@ install_depends(mportInstance *mport, const char *packageName, const char *versi
                 while (*depends != NULL) {
 					g_print("Installing dependency: %s version: %s\n", (*depends)->d_pkgname, (*depends)->d_version);
 
-                        install_depends(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC);
+                        if (install_depends(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC) != MPORT_OK) {
+					mport_index_depends_free_vec(dependsHead);
+                                return mport_err_code();
+                        }
                         depends++;
                 }
 				g_print("Installing main package...\n");
-                if (mport_install(mport, packageName, version, NULL, MPORT_EXPLICIT) != MPORT_OK) {
+                if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
 					g_warning("Main package installation failed: %s", mport_err_string());
 					mport_index_depends_free_vec(dependsHead);
                         msgbox(GTK_WINDOW(window), mport_err_string());
