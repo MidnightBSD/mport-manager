@@ -124,14 +124,10 @@ static void create_installed_tree(void);
 static GtkWidget *
 create_app_icon_image(int pixel_size)
 {
-	const char *const icon_paths[] = {ICONFILE, "icon.png", NULL};
-
-	for (size_t i = 0; icon_paths[i] != NULL; i++) {
-		if (g_file_test(icon_paths[i], G_FILE_TEST_EXISTS)) {
-			GtkWidget *image = gtk_image_new_from_file(icon_paths[i]);
-			gtk_image_set_pixel_size(GTK_IMAGE(image), pixel_size);
-			return image;
-		}
+	if (g_file_test(ICONFILE, G_FILE_TEST_EXISTS)) {
+		GtkWidget *image = gtk_image_new_from_file(ICONFILE);
+		gtk_image_set_pixel_size(GTK_IMAGE(image), pixel_size);
+		return image;
 	}
 
 	GtkWidget *image = gtk_image_new_from_icon_name("dialog-information-symbolic");
