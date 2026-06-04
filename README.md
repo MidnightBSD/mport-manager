@@ -8,7 +8,7 @@ A graphical package manager for MidnightBSD 0.8 and higher.
 Uses libmport included with the operating system.
 
 To build:
-Install Gtk+ 3.x
+Install Gtk+ 3.x  (for 0.2.3 and lower) or Gtk 4.x for 0.3.0
 make
 
 To Install:
@@ -18,6 +18,8 @@ To run:
 sudo mport-manager
 
 ## Breaking Changes
+0.3.0 requires libmport 2.7.4 or higher and was tested primarily with 2.7.9 on MidnightBSD 4.0.5
+
 0.2.3 requires libmport 2.6.2 or higher
 
 0.2.2 requires libmport 2.4.2 or higher
@@ -31,7 +33,7 @@ NOTE:
 0.7 is partially supported as long as you're running a recent
 stable rather than the ISO for the release.
 
-As libdispatch was not complied with blocks support in 0.7,
+As libdispatch was not compiled with blocks support in 0.7,
 ifdef's with DISPATCH are guarding those sections.
 
 
