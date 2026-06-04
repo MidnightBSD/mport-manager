@@ -48,6 +48,8 @@ GtkWidget *tree;
 GtkWidget *installedTree;
 GtkWidget *updateTree;
 GtkWidget *progressBar = NULL;
+GtkWidget *logView = NULL;
+GtkTextBuffer *logBuffer = NULL;
 
 mportInstance *mport;
 
@@ -114,6 +116,8 @@ static void installed_delete_button_clicked(GtkButton *button, GtkWidget *parent
 static void msgbox(GtkWindow *parent, const char * msg);
 static void msgbox_modal(GtkWindow *parent, const char *title, const char *button_label, const char *msg);
 static bool msgbox_bool(GtkWindow *parent, const char *msg, const char *yes, const char *no, int def);
+static GtkWidget *create_log_view(void);
+static void append_log_message(const char *msg);
 static void cut_clicked (GtkButton *, GtkEditable *);
 static void copy_clicked (GtkButton *, GtkEditable *);
 static void paste_clicked (GtkButton *, GtkEditable *);
@@ -347,6 +351,7 @@ activate(GtkApplication *app, gpointer user_data)
 	gtk_box_append(GTK_BOX(stackHolder), stack);
 	gtk_widget_set_vexpand(stack, TRUE);
 	gtk_box_append(GTK_BOX(stackHolder), progressBar);
+	gtk_box_append(GTK_BOX(stackHolder), create_log_view());
 
 	gtk_window_set_child(GTK_WINDOW(window), stackHolder);
 	gtk_window_present(GTK_WINDOW(window));
@@ -371,7 +376,7 @@ void
 mport_gtk_msg_cb(const char *msg)
 {
 
-	msgbox(GTK_WINDOW(window), msg);
+	append_log_message(msg);
 }
 
 int
@@ -399,6 +404,7 @@ mport_gtk_progress_init_cb(const char *title)
 	if (progressBar == NULL)
 		return;
 	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), title);
+	append_log_message(title);
 }
 
 void
@@ -427,6 +433,7 @@ mport_gtk_progress_free_cb(void)
 		return;
 
 	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), "Task Completed");
+	append_log_message("Task Completed");
 }
 
 void
@@ -844,9 +851,15 @@ create_header_bar(GtkWidget *window, GtkWidget *search)
 static void
 update_button_clicked(GtkButton *button, GtkWindow *parent)
 {
+	append_log_message("Starting upgrade...");
+
 	int resultCode = mport_upgrade(mport);
-	if (resultCode != MPORT_OK)
+	if (resultCode != MPORT_OK) {
+		append_log_message(mport_err_string());
 		msgbox(parent, mport_err_string());
+	} else {
+		append_log_message("Upgrade completed.");
+	}
 
 	refresh_stats();
 }
@@ -1182,6 +1195,65 @@ delete(const char *packageName)
 
     mport_pkgmeta_vec_free(packs);
     return result;
+}
+
+static GtkWidget *
+create_log_view(void)
+{
+	GtkWidget *log_box;
+	GtkWidget *log_label;
+	GtkWidget *scrolled_log;
+
+	logBuffer = gtk_text_buffer_new(NULL);
+	logView = gtk_text_view_new_with_buffer(logBuffer);
+	gtk_text_view_set_editable(GTK_TEXT_VIEW(logView), FALSE);
+	gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(logView), FALSE);
+	gtk_text_view_set_monospace(GTK_TEXT_VIEW(logView), TRUE);
+	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(logView), GTK_WRAP_WORD_CHAR);
+
+	scrolled_log = gtk_scrolled_window_new();
+	gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled_log), logView);
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_log),
+	                               GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+	gtk_widget_set_size_request(scrolled_log, -1, 140);
+
+	log_label = gtk_label_new("Log");
+	gtk_widget_set_halign(log_label, GTK_ALIGN_START);
+	gtk_widget_set_margin_start(log_label, 5);
+
+	log_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
+	gtk_box_append(GTK_BOX(log_box), log_label);
+	gtk_box_append(GTK_BOX(log_box), scrolled_log);
+
+	return log_box;
+}
+
+static void
+append_log_message(const char *msg)
+{
+	GtkTextIter end;
+	GtkTextMark *end_mark;
+
+	if (msg == NULL)
+		return;
+
+	if (logBuffer == NULL) {
+		g_print("%s\n", msg);
+		return;
+	}
+
+	gtk_text_buffer_get_end_iter(logBuffer, &end);
+	gtk_text_buffer_insert(logBuffer, &end, msg, -1);
+	if (msg[0] != '\0' && msg[strlen(msg) - 1] != '\n')
+		gtk_text_buffer_insert(logBuffer, &end, "\n", -1);
+
+	if (logView == NULL)
+		return;
+
+	gtk_text_buffer_get_end_iter(logBuffer, &end);
+	end_mark = gtk_text_buffer_create_mark(logBuffer, NULL, &end, FALSE);
+	gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(logView), end_mark);
+	gtk_text_buffer_delete_mark(logBuffer, end_mark);
 }
 
 
