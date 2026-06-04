@@ -1923,13 +1923,17 @@ lock(mportInstance *mport, const char *packageName)
 {
 	mportPackageMeta **packs = lookup_for_lock(mport, packageName);
 
-	if (packs != NULL) {
-		mport_lock_lock(mport, (*packs));
+	if (packs == NULL)
+		return (MPORT_ERR_FATAL);
+
+	if (*packs == NULL) {
 		mport_pkgmeta_vec_free(packs);
-		return (MPORT_OK);
+		return (MPORT_ERR_FATAL);
 	}
 
-	return (MPORT_ERR_FATAL);
+	mport_lock_lock(mport, (*packs));
+	mport_pkgmeta_vec_free(packs);
+	return (MPORT_OK);
 }
 
 static int
@@ -1937,11 +1941,15 @@ unlock(mportInstance *mport, const char *packageName)
 {
 	mportPackageMeta **packs = lookup_for_lock(mport, packageName);
 
-	if (packs != NULL) {
-		mport_lock_unlock(mport, (*packs));
+	if (packs == NULL)
+		return (MPORT_ERR_FATAL);
+
+	if (*packs == NULL) {
 		mport_pkgmeta_vec_free(packs);
-		return (MPORT_OK);
+		return (MPORT_ERR_FATAL);
 	}
 
-	return (MPORT_ERR_FATAL);
+	mport_lock_unlock(mport, (*packs));
+	mport_pkgmeta_vec_free(packs);
+	return (MPORT_OK);
 }
