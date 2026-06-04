@@ -1058,6 +1058,14 @@ install(mportInstance *mport, const char *packageName)
 
 		gtk_window_destroy(GTK_WINDOW(dialog));
 
+		// gtk_combo_box_get_active() returns -1 when nothing is
+		// selected; guard against an out-of-bounds pointer offset.
+		if (choice < 0 || choice >= item)
+		{
+			mport_index_entry_free_vec(indexEntryHead);
+			return MPORT_ERR_WARN;
+		}
+
 		// Set indexEntry to the chosen package
 		indexEntry += choice;
 	}
