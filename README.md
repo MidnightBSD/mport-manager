@@ -17,6 +17,11 @@ sudo make install
 To run:
 sudo mport-manager
 
+## Dependencies
+GTK 4
+policykit / pkexec
+libmport
+
 ## Breaking Changes
 0.3.0 requires libmport 2.7.4 or higher and was tested primarily with 2.7.9 on MidnightBSD 4.0.5
 
