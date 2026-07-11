@@ -41,6 +41,7 @@
 #define NAME "MidnightBSD Package Manager"
 #define ICONFILE "/usr/local/share/mport/icon.png"
 #define MPORT_LOCAL_PKG_PATH "/var/db/mport/downloads"
+#define MPORT_MANAGER_MAX_DEPENDENCY_DEPTH 64
 
 GtkWidget *window;
 GtkWidget *search; /* textboxes */
@@ -166,6 +167,7 @@ static gint run_dialog_sync(GtkDialog *dialog);
 static int delete(const char *);
 static int install(mportInstance *, const char *);
 static int install_depends(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic);
+static int install_depends_limited(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic, unsigned int depth);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
 static int lock(mportInstance *mport, const char *packageName);
 static int unlock(mportInstance *mport, const char *packageName);
@@ -1110,11 +1112,27 @@ install(mportInstance *mport, const char *packageName)
 static int
 install_depends(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic) 
 {
+        return install_depends_limited(mport, packageName, version, automatic, 0);
+}
+
+static int
+install_depends_limited(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic, unsigned int depth)
+{
         mportPackageMeta **packs;
         mportDependsEntry **depends;
+        int resultCode;
 
         if (packageName == NULL || version == NULL)
                 return (MPORT_ERR_FATAL);
+
+        if (depth > MPORT_MANAGER_MAX_DEPENDENCY_DEPTH) {
+                g_autofree gchar *message = g_strdup_printf(
+                        "Dependency depth limit exceeded while installing %s-%s. "
+                        "The dependency graph may contain a cycle.",
+                        packageName, version);
+                msgbox(GTK_WINDOW(window), message);
+                return (MPORT_ERR_FATAL);
+        }
 
         if (mport_index_depends_list(mport, packageName, version, &depends) != MPORT_OK) {
                 msgbox(GTK_WINDOW(window), mport_err_string());
@@ -1142,9 +1160,10 @@ install_depends(mportInstance *mport, const char *packageName, const char *versi
                 while (*depends != NULL) {
 					g_print("Installing dependency: %s version: %s\n", (*depends)->d_pkgname, (*depends)->d_version);
 
-                        if (install_depends(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC) != MPORT_OK) {
+                        resultCode = install_depends_limited(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC, depth + 1);
+                        if (resultCode != MPORT_OK) {
 					mport_index_depends_free_vec(dependsHead);
-                                return mport_err_code();
+                                return resultCode;
                         }
                         depends++;
                 }

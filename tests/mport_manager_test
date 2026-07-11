@@ -52,8 +52,27 @@ installs_desktop_policy_resources_body()
 		stage/usr/local/share/polkit-1/actions/org.midnightbsd.mport-manager.policy
 }
 
+atf_test_case dependency_recursion_has_limit
+dependency_recursion_has_limit_head()
+{
+	atf_set "descr" "Dependency installation recursion has a bounded depth guard"
+}
+
+dependency_recursion_has_limit_body()
+{
+	srcdir="$(atf_get_srcdir)"
+	repo="${srcdir}/.."
+
+	atf_check -s exit:0 -o match:"MPORT_MANAGER_MAX_DEPENDENCY_DEPTH 64" \
+		grep "MPORT_MANAGER_MAX_DEPENDENCY_DEPTH" "${repo}/mport-manager.c"
+	atf_check -s exit:0 -o match:"depth \\+ 1" \
+		grep "install_depends_limited(mport, (\\*depends)->d_pkgname" \
+		"${repo}/mport-manager.c"
+}
+
 atf_init_test_cases()
 {
 	atf_add_test_case builds_from_clean_tree
 	atf_add_test_case installs_desktop_policy_resources
+	atf_add_test_case dependency_recursion_has_limit
 }
