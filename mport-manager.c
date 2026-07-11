@@ -426,6 +426,10 @@ mport_gtk_progress_step_cb(int current, int total, const char *msg)
 	percent = (gdouble) current / (gdouble) total;
 
 	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), percent);
+
+	while (g_main_context_pending(NULL)) {
+		g_main_context_iteration(NULL, FALSE);
+	}
 }
 
 void
@@ -886,9 +890,16 @@ do_search(void)
 	const gchar *query;
 
 	query = gtk_editable_get_text(GTK_EDITABLE(search));
-	if (query != NULL && strlen(query) > 255) {
-		msgbox(GTK_WINDOW(window), "Search query is too long. Maximum length is 255 characters.");
-		return;
+	if (query != NULL) {
+		size_t len = strlen(query);
+		if (len > 255) {
+			msgbox(GTK_WINDOW(window), "Search query is too long. Maximum length is 255 characters.");
+			return;
+		}
+		if (len > 0 && len < 2) {
+			msgbox(GTK_WINDOW(window), "Search query is too short. Minimum length is 2 characters.");
+			return;
+		}
 	}
 
 	GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree));
@@ -1853,10 +1864,30 @@ populate_update_packages(GtkTreeStore *store)
 	char *os_release = mport_get_osrelease(mport);
 	if (os_release == NULL) {
 		g_warning("Failed to get OS release");
-        msgbox(GTK_WINDOW(window), "Failed to get OS release");
+		msgbox(GTK_WINDOW(window), "Failed to get OS release");
 		mport_pkgmeta_vec_free(packs);
-        return;
-    }
+		return;
+	}
+
+	mportIndexEntry **indexList = NULL;
+	if (mport_index_list(mport, &indexList) != MPORT_OK) {
+		g_warning("Failed to get remote index list: %s", mport_err_string());
+		mport_pkgmeta_vec_free(packs);
+		free(os_release);
+		return;
+	}
+
+	GHashTable *index_cache = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)g_ptr_array_unref);
+	for (mportIndexEntry **entry = indexList; entry && *entry; entry++) {
+		if ((*entry)->pkgname != NULL) {
+			GPtrArray *arr = g_hash_table_lookup(index_cache, (*entry)->pkgname);
+			if (arr == NULL) {
+				arr = g_ptr_array_new();
+				g_hash_table_insert(index_cache, (gpointer)(*entry)->pkgname, arr);
+			}
+			g_ptr_array_add(arr, *entry);
+		}
+	}
 
 	g_debug("OS Release: %s", os_release);
 
@@ -1866,68 +1897,57 @@ populate_update_packages(GtkTreeStore *store)
 	}
 
 	for (mportPackageMeta **pack = packs; pack && *pack; pack++) {
-		mportIndexEntry **indexEntries = NULL;
-
 		if ((*pack)->name == NULL)
 			continue;
 
-        g_debug("Processing package: %s", (*pack)->name);
+		g_debug("Processing package: %s", (*pack)->name);
 
-		if (mport_index_lookup_pkgname(mport, (*pack)->name, &indexEntries) != MPORT_OK)
-		{
-            g_warning("Failed to lookup package: %s", (*pack)->name);
-            continue;
-        }
+		GPtrArray *entries_arr = g_hash_table_lookup(index_cache, (*pack)->name);
+		if (entries_arr == NULL || entries_arr->len == 0) {
+			g_debug("No index entries for package: %s", (*pack)->name);
+			continue;
+		}
 
-        if (indexEntries == NULL || *indexEntries == NULL)
-		{
-            g_debug("No index entries for package: %s", (*pack)->name);
-			if (indexEntries != NULL)
-				mport_index_entry_free_vec(indexEntries);
-            continue;
-        }
+		for (guint i = 0; i < entries_arr->len; i++) {
+			mportIndexEntry *entry = g_ptr_array_index(entries_arr, i);
+			if (entry->version == NULL) {
+				g_warning("Null version for package: %s", (*pack)->name);
+				continue;
+			}
 
-		for (mportIndexEntry **entry = indexEntries; entry && *entry; entry++) {
-			if ((*entry)->version == NULL)
-			{
-                g_warning("Null version for package: %s", (*pack)->name);
-                continue;
-            }
-
-			if ((*pack)->version == NULL)
-			{
+			if ((*pack)->version == NULL) {
 				g_warning("Null installed version for package: %s", (*pack)->name);
 				continue;
 			}
 
-			int version_cmp = mport_version_cmp((*pack)->version, (*entry)->version);
+			int version_cmp = mport_version_cmp((*pack)->version, entry->version);
 			int os_cmp = ((*pack)->os_release != NULL) ? mport_version_cmp((*pack)->os_release, os_release) : 0;
 
 			g_debug("Package: %s, Installed: %s, Available: %s, OS: %s",
-					(*pack)->name, (*pack)->version, (*entry)->version, (*pack)->os_release ? (*pack)->os_release : "NULL");
+					(*pack)->name, (*pack)->version, entry->version, (*pack)->os_release ? (*pack)->os_release : "NULL");
 
-			if (version_cmp < 0 || os_cmp < 0)
-			{
-
+			if (version_cmp < 0 || os_cmp < 0) {
 				GtkTreeIter iter;
 				gtk_tree_store_append(store, &iter, NULL);
 				gtk_tree_store_set(store, &iter,
 								   UPD_TITLE_COLUMN, (*pack)->name,
 								   UPD_VERSION_COLUMN, (*pack)->version,
 								   UPD_OS_RELEASE_COLUMN, (*pack)->os_release ? (*pack)->os_release : "",
-								   UPD_NEW_VERSION_COLUMN, (*entry)->version,
+								   UPD_NEW_VERSION_COLUMN, entry->version,
 								   -1);
 
 				g_debug("Added update for package: %s", (*pack)->name);
 			}
 		}
-		mport_index_entry_free_vec(indexEntries);
 	}
 
 	if (updateTree != NULL) {
 		gtk_tree_view_set_model(GTK_TREE_VIEW(updateTree), GTK_TREE_MODEL(store));
 		g_object_unref(store);
 	}
+
+	g_hash_table_destroy(index_cache);
+	mport_index_entry_free_vec(indexList);
 
 	g_debug("Finished populate_update_packages");
 
