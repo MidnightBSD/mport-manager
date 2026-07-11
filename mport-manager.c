@@ -870,7 +870,6 @@ lookupIndex(mportInstance *mport, const char *packageName)
 			"Error looking up package name %s: %d %s\n",
 			packageName, mport_err_code(), mport_err_string());
 		msgbox_modal(GTK_WINDOW(window), "Error", "_Close", message);
-		g_application_quit(G_APPLICATION(g_application_get_default()));
 		return (NULL);
 	}
 
@@ -1147,6 +1146,11 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
         }
 
         gboolean installed = (packs != NULL && *packs != NULL);
+        if (installed) {
+                if (mport_version_cmp((*packs)->version, version) < 0) {
+                        installed = FALSE;
+                }
+        }
 
         if (!installed) {
                 if (packs != NULL) {
