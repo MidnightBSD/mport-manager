@@ -811,8 +811,7 @@ static GtkWidget *
 create_header_bar(GtkWidget *window, GtkWidget *search)
 {
 	GtkWidget *header_bar = gtk_header_bar_new();
-	GtkWidget *icon = gtk_image_new_from_file(ICONFILE);
-	gtk_image_set_pixel_size(GTK_IMAGE(icon), 24);
+	GtkWidget *icon = create_app_icon_image(24);
 	gtk_header_bar_pack_start(GTK_HEADER_BAR(header_bar), icon);
 
 	GtkWidget *quit_btn = gtk_button_new_with_label("Quit");
