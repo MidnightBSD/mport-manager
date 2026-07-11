@@ -572,6 +572,8 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 				(mport->msg_cb)(msg);
 				free(msg);
 			}
+			g_free(name);
+			g_free(version);
 			return;
 		}
 
@@ -631,7 +633,7 @@ available_cursor_changed_handler(GtkTreeView *treeView, gpointer data)
 static void
 refresh_stats(void)
 {
-	char flatsize_str[10];
+	char flatsize_str[32];
 	char installed_str[16];
 	char available_str[16];
 	mportStats *s = NULL;
@@ -1008,6 +1010,8 @@ install(mportInstance *mport, const char *packageName)
 			"Package %s not found in the index.",
 			packageName);
 		msgbox_modal(GTK_WINDOW(window), "Error", "_Close", message);
+		if (indexEntryHead != NULL)
+			mport_index_entry_free_vec(indexEntryHead);
 		return MPORT_ERR_WARN;
 	}
 
@@ -1145,41 +1149,50 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
                 return mport_err_code();
         }
 
-        if (packs == NULL && depends == NULL) {
-			g_print("No existing package or dependencies, installing directly...\n");
-     
-                /* Package is not installed and there are no dependencies */
-                if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
-                        msgbox(GTK_WINDOW(window), mport_err_string());
-                        return mport_err_code();
-                }
-        } else if (packs == NULL) {
-			g_print("Installing dependencies...\n");
-                /* Package is not installed */
-                mportDependsEntry **dependsHead = depends;
-                while (*depends != NULL) {
-					g_print("Installing dependency: %s version: %s\n", (*depends)->d_pkgname, (*depends)->d_version);
+        gboolean installed = (packs != NULL && *packs != NULL);
 
-                        resultCode = install_depends_limited(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC, depth + 1);
-                        if (resultCode != MPORT_OK) {
-					mport_index_depends_free_vec(dependsHead);
-                                return resultCode;
+        if (!installed) {
+                if (packs != NULL) {
+                        mport_pkgmeta_vec_free(packs);
+                        packs = NULL;
+                }
+                if (depends == NULL) {
+                        g_print("No existing package or dependencies, installing directly...\n");
+                        /* Package is not installed and there are no dependencies */
+                        if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
+                                msgbox(GTK_WINDOW(window), mport_err_string());
+                                return mport_err_code();
                         }
-                        depends++;
+                } else {
+                        g_print("Installing dependencies...\n");
+                        /* Package is not installed */
+                        mportDependsEntry **dependsHead = depends;
+                        while (*depends != NULL) {
+                                g_print("Installing dependency: %s version: %s\n", (*depends)->d_pkgname, (*depends)->d_version);
+
+                                resultCode = install_depends_limited(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC, depth + 1);
+                                if (resultCode != MPORT_OK) {
+                                        mport_index_depends_free_vec(dependsHead);
+                                        return resultCode;
+                                }
+                                depends++;
+                        }
+                        g_print("Installing main package...\n");
+                        if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
+                                g_warning("Main package installation failed: %s", mport_err_string());
+                                mport_index_depends_free_vec(dependsHead);
+                                msgbox(GTK_WINDOW(window), mport_err_string());
+                                return mport_err_code();
+                        }
+                        mport_index_depends_free_vec(dependsHead);
                 }
-				g_print("Installing main package...\n");
-                if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
-					g_warning("Main package installation failed: %s", mport_err_string());
-					mport_index_depends_free_vec(dependsHead);
-                        msgbox(GTK_WINDOW(window), mport_err_string());
-                        return mport_err_code();
-                }
-                mport_index_depends_free_vec(dependsHead);
         } else {
                 /* already installed */
-				g_print("Package already installed\n");
+                g_print("Package already installed\n");
                 mport_pkgmeta_vec_free(packs);
-                mport_index_depends_free_vec(depends);
+                if (depends != NULL) {
+                        mport_index_depends_free_vec(depends);
+                }
         }
 
 		g_print("Exiting install_depends for package: %s\n", packageName);
@@ -1210,7 +1223,8 @@ delete(const char *packageName)
 			packageName);
 		g_print("%s\n", message);
 		msgbox_modal(GTK_WINDOW(window), "Error", "_Close", message);
-		
+		if (packs != NULL)
+			mport_pkgmeta_vec_free(packs);
 		return MPORT_ERR_WARN;
 	}
 
@@ -1769,7 +1783,7 @@ static void
 populate_installed_packages(GtkTreeStore *store)
 {
 	mportPackageMeta **packs;
-	char flatsize_str[10];
+	char flatsize_str[32];
 
     g_print("Starting populate_installed_packages\n");
 
@@ -1845,6 +1859,10 @@ populate_update_packages(GtkTreeStore *store)
 		return;
 	}
 
+	if (packs == NULL) {
+		return;
+	}
+
 	char *os_release = mport_get_osrelease(mport);
 	if (os_release == NULL) {
 		g_warning("Failed to get OS release");
@@ -1862,6 +1880,9 @@ populate_update_packages(GtkTreeStore *store)
 
 	for (mportPackageMeta **pack = packs; pack && *pack; pack++) {
 		mportIndexEntry **indexEntries = NULL;
+
+		if ((*pack)->name == NULL)
+			continue;
 
         g_debug("Processing package: %s", (*pack)->name);
 
@@ -1962,9 +1983,9 @@ lock(mportInstance *mport, const char *packageName)
 		return (MPORT_ERR_FATAL);
 	}
 
-	mport_lock_lock(mport, (*packs));
+	int ret = mport_lock_lock(mport, (*packs));
 	mport_pkgmeta_vec_free(packs);
-	return (MPORT_OK);
+	return (ret);
 }
 
 static int
@@ -1980,7 +2001,7 @@ unlock(mportInstance *mport, const char *packageName)
 		return (MPORT_ERR_FATAL);
 	}
 
-	mport_lock_unlock(mport, (*packs));
+	int ret = mport_lock_unlock(mport, (*packs));
 	mport_pkgmeta_vec_free(packs);
-	return (MPORT_OK);
+	return (ret);
 }
