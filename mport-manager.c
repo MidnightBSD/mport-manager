@@ -495,7 +495,6 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
 {
 	GtkTreeIter iter;
 	GtkTreeModel *model;
-	mportIndexEntry **indexEntries = NULL;
 
 	reset_progress_bar();
 
@@ -509,20 +508,8 @@ installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *p
 		gtk_tree_model_get(model, &iter, INST_VERSION_COLUMN, &version, -1);
 
 		if (name && version) {
-			selectedInstalled[0] = '\0';
-			selectedInstalledVersion[0] = '\0';
-			if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
-				g_warning("Error looking up package name %s: %s", name, mport_err_string());
-			} else if (indexEntries != NULL) {
-				for (mportIndexEntry **entry = indexEntries; entry != NULL && *entry != NULL; entry++) {
-					if ((*entry)->version != NULL && mport_version_cmp(version, (*entry)->version) == 0) {
-						g_strlcpy(selectedInstalled, name, sizeof(selectedInstalled));
-						g_strlcpy(selectedInstalledVersion, version, sizeof(selectedInstalledVersion));
-						break;
-					}
-				}
-				mport_index_entry_free_vec(indexEntries);
-			}
+			g_strlcpy(selectedInstalled, name, sizeof(selectedInstalled));
+			g_strlcpy(selectedInstalledVersion, version, sizeof(selectedInstalledVersion));
 		} else {
 			selectedInstalled[0] = '\0';
 			selectedInstalledVersion[0] = '\0';
