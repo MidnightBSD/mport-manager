@@ -884,6 +884,16 @@ button_clicked(GtkButton *button, GtkWindow *parent)
 }
 
 static void
+clear_details(void)
+{
+	gtk_label_set_text(GTK_LABEL(detail.label), "");
+	gtk_label_set_text(GTK_LABEL(detail.labelVersion), "");
+	gtk_label_set_text(GTK_LABEL(detail.labelName), "");
+	gtk_label_set_text(GTK_LABEL(detail.labelLicense), "");
+	gtk_label_set_text(GTK_LABEL(detail.labelType), "");
+}
+
+static void
 do_search(void)
 {
 	const gchar *query;
@@ -900,6 +910,8 @@ do_search(void)
 			return;
 		}
 	}
+
+	clear_details();
 
 	GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree));
 	if (model != NULL) {
@@ -966,6 +978,8 @@ reload_updates(void) {
 static void
 reload_installed(void) {
 	g_print("Starting reload_installed\n");
+	selectedInstalled[0] = '\0';
+	selectedInstalledVersion[0] = '\0';
 	GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(installedTree));
 	
 	if (model == NULL) {
