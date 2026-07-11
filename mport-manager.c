@@ -125,6 +125,15 @@ static void paste_clicked (GtkButton *, GtkEditable *);
 static int msgbox_select(GtkWindow *parent, const char *msg, mportIndexEntry **choices, int def);
 static void setup_tree(void);
 static void create_installed_tree(void);
+static void maintenance_autoremove_clicked(GtkButton *button, GtkWindow *parent);
+static void maintenance_clean_clicked(GtkButton *button, GtkWindow *parent);
+static void maintenance_verify_clicked(GtkButton *button, GtkWindow *parent);
+static void maintenance_mirror_clicked(GtkButton *button, GtkWindow *parent);
+static void maintenance_import_clicked(GtkButton *button, GtkWindow *parent);
+static void maintenance_export_clicked(GtkButton *button, GtkWindow *parent);
+static void installed_audit_button_clicked(GtkButton *button, GtkWidget *parent);
+static void on_import_response(GtkNativeDialog *dialog, int response_id, gpointer user_data);
+static void on_export_response(GtkNativeDialog *dialog, int response_id, gpointer user_data);
 
 static GtkWidget *
 create_app_icon_image(int pixel_size)
@@ -302,6 +311,13 @@ activate(GtkApplication *app, gpointer user_data)
     g_signal_connect(G_OBJECT(unlockButton), "clicked",
                      G_CALLBACK(unlock_button_clicked),
                      (gpointer) window);
+
+	// Create audit button
+	GtkWidget *auditButton = gtk_button_new_with_mnemonic("_Audit");
+	g_signal_connect(G_OBJECT(auditButton), "clicked",
+	                 G_CALLBACK(installed_audit_button_clicked),
+	                 (gpointer) window);
+
 	// create installed box
 	GtkWidget *installedBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 	gtk_box_append(GTK_BOX(installedBox), scrolled_installed);
@@ -310,9 +326,11 @@ activate(GtkApplication *app, gpointer user_data)
 	gtk_box_append(GTK_BOX(buttonBox), removeInstalledAppButton);
     gtk_box_append(GTK_BOX(buttonBox), lockButton);
     gtk_box_append(GTK_BOX(buttonBox), unlockButton);
+    gtk_box_append(GTK_BOX(buttonBox), auditButton);
 	gtk_widget_set_hexpand(removeInstalledAppButton, TRUE);
 	gtk_widget_set_hexpand(lockButton, TRUE);
 	gtk_widget_set_hexpand(unlockButton, TRUE);
+	gtk_widget_set_hexpand(auditButton, TRUE);
 	gtk_box_append(GTK_BOX(installedBox), buttonBox);
 
 
@@ -334,12 +352,47 @@ activate(GtkApplication *app, gpointer user_data)
 	// create stats box
 	GtkWidget *statsBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 	create_stats_box(statsBox);
+
+	// create Maintenance box
+	GtkWidget *maintenanceBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+	gtk_widget_set_margin_start(maintenanceBox, 15);
+	gtk_widget_set_margin_end(maintenanceBox, 15);
+	gtk_widget_set_margin_top(maintenanceBox, 15);
+	gtk_widget_set_margin_bottom(maintenanceBox, 15);
+
+	GtkWidget *maintenanceLabel = gtk_label_new("System Maintenance & Diagnostics");
+	gtk_box_append(GTK_BOX(maintenanceBox), maintenanceLabel);
+
+	GtkWidget *autoremoveBtn = gtk_button_new_with_label("Remove Orphan Dependencies (Autoremove)");
+	g_signal_connect(G_OBJECT(autoremoveBtn), "clicked", G_CALLBACK(maintenance_autoremove_clicked), window);
+	gtk_box_append(GTK_BOX(maintenanceBox), autoremoveBtn);
+
+	GtkWidget *cleanBtn = gtk_button_new_with_label("Clean Package Cache");
+	g_signal_connect(G_OBJECT(cleanBtn), "clicked", G_CALLBACK(maintenance_clean_clicked), window);
+	gtk_box_append(GTK_BOX(maintenanceBox), cleanBtn);
+
+	GtkWidget *verifyBtn = gtk_button_new_with_label("Verify Package Integrity");
+	g_signal_connect(G_OBJECT(verifyBtn), "clicked", G_CALLBACK(maintenance_verify_clicked), window);
+	gtk_box_append(GTK_BOX(maintenanceBox), verifyBtn);
+
+	GtkWidget *mirrorBtn = gtk_button_new_with_label("Detect & Select Fastest Mirror");
+	g_signal_connect(G_OBJECT(mirrorBtn), "clicked", G_CALLBACK(maintenance_mirror_clicked), window);
+	gtk_box_append(GTK_BOX(maintenanceBox), mirrorBtn);
+
+	GtkWidget *importBtn = gtk_button_new_with_label("Import Package List (Bulk Install)...");
+	g_signal_connect(G_OBJECT(importBtn), "clicked", G_CALLBACK(maintenance_import_clicked), window);
+	gtk_box_append(GTK_BOX(maintenanceBox), importBtn);
+
+	GtkWidget *exportBtn = gtk_button_new_with_label("Export Installed Packages List...");
+	g_signal_connect(G_OBJECT(exportBtn), "clicked", G_CALLBACK(maintenance_export_clicked), window);
+	gtk_box_append(GTK_BOX(maintenanceBox), exportBtn);
 	
 	// add all the stacks
 	gtk_stack_add_titled(GTK_STACK(stack), vbox, "page-1", "Available Software");
 	gtk_stack_add_titled(GTK_STACK(stack), installedBox, "page-2", "Installed Software");
 	gtk_stack_add_titled(GTK_STACK(stack), updateBox, "page-3", "Updates");
 	gtk_stack_add_titled(GTK_STACK(stack), statsBox, "page-4", "Stats");
+	gtk_stack_add_titled(GTK_STACK(stack), maintenanceBox, "page-5", "Maintenance");
 
 	gtk_stack_set_visible_child_name(GTK_STACK(stack), "page-1");
 
@@ -2033,4 +2086,257 @@ unlock(mportInstance *mport, const char *packageName)
 	int ret = mport_lock_unlock(mport, (*packs));
 	mport_pkgmeta_vec_free(packs);
 	return (ret);
+}
+
+static void
+maintenance_autoremove_clicked(GtkButton *button, GtkWindow *parent)
+{
+	append_log_message("Starting autoremove...");
+	int resultCode = mport_autoremove(mport);
+	if (resultCode != MPORT_OK) {
+		append_log_message(mport_err_string());
+		msgbox(parent, mport_err_string());
+	} else {
+		append_log_message("Autoremove completed.");
+		msgbox(parent, "Autoremove completed successfully.");
+	}
+	reload_installed();
+	reload_updates();
+	refresh_stats();
+}
+
+static void
+maintenance_clean_clicked(GtkButton *button, GtkWindow *parent)
+{
+	append_log_message("Starting cache cleanup...");
+	mport_clean_database(mport);
+	mport_clean_oldpackages(mport);
+	mport_clean_oldmtree(mport);
+	mport_clean_tempfiles(mport);
+	append_log_message("Cache cleanup completed.");
+	msgbox(parent, "Cache cleanup completed successfully.");
+	refresh_stats();
+}
+
+static void
+maintenance_verify_clicked(GtkButton *button, GtkWindow *parent)
+{
+	append_log_message("Starting packages verification...");
+	mportPackageMeta **packs = NULL;
+	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
+		append_log_message("Failed to retrieve package list.");
+		msgbox(parent, "Failed to retrieve package list.");
+		return;
+	}
+
+	if (packs == NULL || *packs == NULL) {
+		append_log_message("No packages installed.");
+		msgbox(parent, "No packages installed.");
+		if (packs != NULL)
+			mport_pkgmeta_vec_free(packs);
+		return;
+	}
+
+	int broken_count = 0;
+	for (mportPackageMeta **pack = packs; *pack != NULL; pack++) {
+		g_autofree gchar *log = g_strdup_printf("Verifying %s...", (*pack)->name);
+		append_log_message(log);
+		while (g_main_context_pending(NULL)) {
+			g_main_context_iteration(NULL, FALSE);
+		}
+		if (mport_verify_package(mport, *pack) != MPORT_OK) {
+			g_autofree gchar *err = g_strdup_printf("Package %s failed verification: %s", (*pack)->name, mport_err_string());
+			append_log_message(err);
+			broken_count++;
+		}
+	}
+
+	mport_pkgmeta_vec_free(packs);
+
+	g_autofree gchar *res = g_strdup_printf("Verification finished. Broken packages: %d", broken_count);
+	append_log_message(res);
+	if (broken_count > 0) {
+		g_autofree gchar *msg = g_strdup_printf("Verification complete. %d packages failed verification. See logs for details.", broken_count);
+		msgbox(parent, msg);
+	} else {
+		msgbox(parent, "Verification complete. All packages verified successfully.");
+	}
+}
+
+static void
+maintenance_mirror_clicked(GtkButton *button, GtkWindow *parent)
+{
+	append_log_message("Detecting fastest mirror...");
+	mportMirrorEntry **mirrorEntry = NULL;
+	mportMirrorEntry **mirrorEntry_orig = NULL;
+	char hostname[256];
+
+	if (mport_index_mirror_list(mport, &mirrorEntry) != MPORT_OK) {
+		append_log_message("Failed to fetch mirror list.");
+		msgbox(parent, "Failed to fetch mirror list.");
+		return;
+	}
+	mirrorEntry_orig = mirrorEntry;
+
+	long fastest = 99999;
+	const char *country = "us";
+
+	while (mirrorEntry != NULL && *mirrorEntry != NULL) {
+		char *url_copy = g_strdup((*mirrorEntry)->url);
+		char *p = strchr(url_copy, '/');
+		if (p != NULL) {
+			p++;
+			if (*p == '/')
+				p++;
+		} else {
+			p = url_copy;
+		}
+		char *end = strchr(p, '/');
+		if (end != NULL) {
+			*end = '\0';
+		}
+		strlcpy(hostname, p, sizeof(hostname));
+		g_free(url_copy);
+
+		g_autofree gchar *log = g_strdup_printf("Pinging mirror %s (%s)...", (*mirrorEntry)->country, hostname);
+		append_log_message(log);
+		while (g_main_context_pending(NULL)) {
+			g_main_context_iteration(NULL, FALSE);
+		}
+
+		long rtt = ping(hostname);
+		if (rtt != -1) {
+			g_autofree gchar *rtt_log = g_strdup_printf("Mirror %s returned rtt %ld ms", (*mirrorEntry)->country, rtt);
+			append_log_message(rtt_log);
+			if (rtt < fastest) {
+				fastest = rtt;
+				country = (*mirrorEntry)->country;
+			}
+		} else {
+			append_log_message("Mirror timed out.");
+		}
+
+		mirrorEntry++;
+	}
+
+	if (mirrorEntry_orig != NULL) {
+		mport_index_mirror_entry_free_vec(mirrorEntry_orig);
+	}
+
+	g_autofree gchar *log_res = g_strdup_printf("Mirror selection complete. Fastest: %s (%ld ms)", country, fastest);
+	append_log_message(log_res);
+
+	if (mport_setting_set(mport, "mirror_region", country) != MPORT_OK) {
+		append_log_message("Failed to save mirror setting.");
+		msgbox(parent, "Failed to save mirror setting.");
+	} else {
+		g_autofree gchar *msg = g_strdup_printf("Mirror set to region: %s", country);
+		msgbox(parent, msg);
+	}
+}
+
+static void
+on_import_response(GtkNativeDialog *dialog, int response_id, gpointer user_data)
+{
+	if (response_id == GTK_RESPONSE_ACCEPT) {
+		GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
+		GFile *file = gtk_file_chooser_get_file(chooser);
+		char *filename = g_file_get_path(file);
+		g_object_unref(file);
+
+		append_log_message("Importing packages...");
+		int resultCode = mport_import(mport, filename);
+		if (resultCode != MPORT_OK) {
+			append_log_message(mport_err_string());
+			msgbox(GTK_WINDOW(user_data), mport_err_string());
+		} else {
+			g_autofree gchar *log = g_strdup_printf("Imported successfully from %s", filename);
+			append_log_message(log);
+			msgbox(GTK_WINDOW(user_data), "Package list imported successfully.");
+			reload_installed();
+			reload_updates();
+			refresh_stats();
+		}
+		g_free(filename);
+	}
+	g_object_unref(dialog);
+}
+
+static void
+maintenance_import_clicked(GtkButton *button, GtkWindow *parent)
+{
+	GtkFileChooserNative *native;
+	GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_OPEN;
+
+	native = gtk_file_chooser_native_new("Open Package List",
+	                                     parent,
+	                                     action,
+	                                     "_Open",
+	                                     "_Cancel");
+
+	g_signal_connect(native, "response", G_CALLBACK(on_import_response), parent);
+	gtk_native_dialog_show(GTK_NATIVE_DIALOG(native));
+}
+
+static void
+on_export_response(GtkNativeDialog *dialog, int response_id, gpointer user_data)
+{
+	if (response_id == GTK_RESPONSE_ACCEPT) {
+		GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
+		GFile *file = gtk_file_chooser_get_file(chooser);
+		char *filename = g_file_get_path(file);
+		g_object_unref(file);
+
+		append_log_message("Exporting packages...");
+		int resultCode = mport_export(mport, filename);
+		if (resultCode != MPORT_OK) {
+			append_log_message(mport_err_string());
+			msgbox(GTK_WINDOW(user_data), mport_err_string());
+		} else {
+			g_autofree gchar *log = g_strdup_printf("Exported successfully to %s", filename);
+			append_log_message(log);
+			msgbox(GTK_WINDOW(user_data), "Package list exported successfully.");
+		}
+		g_free(filename);
+	}
+	g_object_unref(dialog);
+}
+
+static void
+maintenance_export_clicked(GtkButton *button, GtkWindow *parent)
+{
+	GtkFileChooserNative *native;
+	GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_SAVE;
+
+	native = gtk_file_chooser_native_new("Save Package List",
+	                                     parent,
+	                                     action,
+	                                     "_Save",
+	                                     "_Cancel");
+
+	g_signal_connect(native, "response", G_CALLBACK(on_export_response), parent);
+	gtk_native_dialog_show(GTK_NATIVE_DIALOG(native));
+}
+
+static void
+installed_audit_button_clicked(GtkButton *button, GtkWidget *parent)
+{
+	if (selectedInstalled[0] == '\0') {
+		msgbox(GTK_WINDOW(parent), "No package selected.");
+		return;
+	}
+
+	g_autofree gchar *log = g_strdup_printf("Auditing package %s...", selectedInstalled);
+	append_log_message(log);
+
+	char *output = mport_audit(mport, selectedInstalled, false);
+	if (output == NULL || *output == '\0') {
+		g_autofree gchar *res_log = g_strdup_printf("No known vulnerabilities for %s.", selectedInstalled);
+		append_log_message(res_log);
+		msgbox(GTK_WINDOW(parent), "No known vulnerabilities found.");
+	} else {
+		append_log_message(output);
+		msgbox_modal(GTK_WINDOW(parent), "Vulnerability Audit Report", "_Close", output);
+		free(output);
+	}
 }
