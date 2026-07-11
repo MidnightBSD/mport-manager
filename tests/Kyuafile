@@ -3,3 +3,4 @@ syntax(2)
 test_suite("mport-manager")
 
 atf_test_program{name="mport_manager_test"}
+atf_test_program{name="reset_progress_bar_test"}

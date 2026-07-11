@@ -7,6 +7,8 @@ copy_project()
 
 	cp "${repo}/Makefile" .
 	cp "${repo}/mport-manager.c" .
+	cp "${repo}/mport-progress.c" .
+	cp "${repo}/mport-progress.h" .
 	cp "${repo}/icon.png" .
 	cp "${repo}/mport-manager.desktop" .
 	cp "${repo}/org.midnightbsd.mport-manager.policy" .

@@ -1,5 +1,5 @@
 # MidnightBSD mport gui
-CC=clang
+CC?=clang
 CFLAGS= -I/usr/include -I/usr/local/include -Wall -pedantic -std=c99 -O2 `pkg-config --cflags gtk4` \
         -DDATADIR="\"${DATADIR}\""
 LDFLAGS= -L/usr/lib -L/usr/local/lib \
@@ -12,10 +12,13 @@ DATADIR=/usr/local/share/mport
 
 all: clean mport-manager
 
-mport-manager: mport-manager.c
-	${CC} ${CFLAGS} ${LDFLAGS} -o mport-manager mport-manager.c
+mport-manager: mport-manager.c mport-progress.c
+	${CC} ${CFLAGS} ${LDFLAGS} -o mport-manager mport-manager.c mport-progress.c
 
-test:
+tests/reset_progress_bar_test: tests/reset_progress_bar_test.c mport-progress.c
+	${CC} -Wall -std=c99 -O2 -I. -DTEST_SUITE `pkg-config --cflags atf-c` -o tests/reset_progress_bar_test tests/reset_progress_bar_test.c mport-progress.c `pkg-config --libs atf-c`
+
+test: tests/reset_progress_bar_test
 	kyua test -k Kyuafile
 
 install:
@@ -31,4 +34,4 @@ install:
 	install -m 444 org.midnightbsd.mport-manager.policy ${DESTDIR}${PREFIX}/share/polkit-1/actions/
 
 clean:
-	rm -f *.o mport-manager
+	rm -f *.o mport-manager tests/reset_progress_bar_test
