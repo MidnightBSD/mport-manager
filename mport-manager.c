@@ -896,6 +896,10 @@ do_search(void)
 	const gchar *query;
 
 	query = gtk_editable_get_text(GTK_EDITABLE(search));
+	if (query != NULL && strlen(query) > 255) {
+		msgbox(GTK_WINDOW(window), "Search query is too long. Maximum length is 255 characters.");
+		return;
+	}
 
 	GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree));
 	if (model != NULL) {
