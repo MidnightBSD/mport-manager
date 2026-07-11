@@ -38,6 +38,8 @@
 
 #include <mport.h>
 
+#include "mport-progress.h"
+
 #define NAME "MidnightBSD Package Manager"
 #define ICONFILE "/usr/local/share/mport/icon.png"
 #define MPORT_LOCAL_PKG_PATH "/var/db/mport/downloads"
@@ -47,7 +49,6 @@ GtkWidget *search; /* textboxes */
 GtkWidget *tree;
 GtkWidget *installedTree;
 GtkWidget *updateTree;
-GtkWidget *progressBar = NULL;
 GtkWidget *logView = NULL;
 GtkTextBuffer *logBuffer = NULL;
 
@@ -156,7 +157,6 @@ static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path
 static void installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 static void available_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
 static void installed_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
-void reset_progress_bar(void);
 static void lock_button_clicked(GtkButton *button, GtkWidget *parent);
 static void unlock_button_clicked(GtkButton *button, GtkWidget *parent);
 static mportPackageMeta** lookup_for_lock(mportInstance *mport, const char *packageName);
@@ -434,16 +434,6 @@ mport_gtk_progress_free_cb(void)
 
 	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), "Task Completed");
 	append_log_message("Task Completed");
-}
-
-void
-reset_progress_bar(void)
-{
-	if (progressBar == NULL)
-		return;
-
-	gtk_progress_bar_set_text(GTK_PROGRESS_BAR(progressBar), "");
-	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), 0.0);
 }
 
 static void
@@ -896,6 +886,10 @@ do_search(void)
 	const gchar *query;
 
 	query = gtk_editable_get_text(GTK_EDITABLE(search));
+	if (query != NULL && strlen(query) > 255) {
+		msgbox(GTK_WINDOW(window), "Search query is too long. Maximum length is 255 characters.");
+		return;
+	}
 
 	GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(tree));
 	if (model != NULL) {

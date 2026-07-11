@@ -1,4 +1,5 @@
 mport-manager
+tests/reset_progress_bar_test
 *.o
 
 CMakeLists.txt
