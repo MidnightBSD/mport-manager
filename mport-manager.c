@@ -370,7 +370,9 @@ main(int argc, char *argv[])
 	status = g_application_run(G_APPLICATION(app), argc, argv);
 	g_object_unref(app);
 
-	mport_instance_free(mport);
+	if (mport != NULL) {
+		mport_instance_free(mport);
+	}
 	return status;
 }
 
