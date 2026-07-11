@@ -1720,14 +1720,13 @@ populate_remote_index(GtkTreeStore *store)
 	}
 	packsHead = packs;
 
-	/* Build a hash set of "name\tversion" for installed packages so the
-	 * outer loop can do O(1) lookups instead of an O(m) linear scan. */
-	GHashTable *installed_set = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+	/* Build a hash table of installed packages mapping package name to version string
+	 * so the outer loop can do O(1) lookups without heap allocation churn. */
+	GHashTable *installed_set = g_hash_table_new(g_str_hash, g_str_equal);
 	if (packs != NULL) {
 		while (*packs != NULL) {
 			if ((*packs)->name != NULL && (*packs)->version != NULL) {
-				gchar *key = g_strdup_printf("%s\t%s", (*packs)->name, (*packs)->version);
-				g_hash_table_insert(installed_set, key, GINT_TO_POINTER(1));
+				g_hash_table_insert(installed_set, (gpointer)(*packs)->name, (gpointer)(*packs)->version);
 			}
 			packs++;
 		}
@@ -1746,9 +1745,10 @@ populate_remote_index(GtkTreeStore *store)
 		gboolean installed = FALSE;
 
 		if (pkgname != NULL && version != NULL) {
-			gchar *key = g_strdup_printf("%s\t%s", pkgname, version);
-			installed = g_hash_table_lookup(installed_set, key) != NULL;
-			g_free(key);
+			const char *installed_ver = g_hash_table_lookup(installed_set, pkgname);
+			if (installed_ver != NULL && strcmp(version, installed_ver) == 0) {
+				installed = TRUE;
+			}
 		}
 
 #ifdef DEBUG
