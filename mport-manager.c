@@ -1303,7 +1303,7 @@ msgbox(GtkWindow *parent, const char *msg)
 										 NULL);
 	set_window_app_icon(GTK_WINDOW(dialog));
 
-	label = gtk_label_new(msg);
+	label = gtk_label_new(msg ? msg : "");
 	image = create_app_icon_image(48);
 
 	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
@@ -1333,7 +1333,7 @@ msgbox_modal(GtkWindow *parent, const char *title, const char *button_label, con
 	                                     NULL);
 	set_window_app_icon(GTK_WINDOW(dialog));
 
-	label = gtk_label_new(msg);
+	label = gtk_label_new(msg ? msg : "");
 	image = create_app_icon_image(48);
 	gtk_label_set_wrap(GTK_LABEL(label), TRUE);
 	gtk_label_set_xalign(GTK_LABEL(label), 0.0f);
@@ -1395,7 +1395,7 @@ msgbox_bool(GtkWindow *parent, const char *msg, const char *yes, const char *no,
 	else if (def == 1)
 		gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_REJECT);
 
-	label = gtk_label_new(msg);
+	label = gtk_label_new(msg ? msg : "");
 	image = create_app_icon_image(48);
 
 	hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
@@ -1436,7 +1436,7 @@ msgbox_select(GtkWindow *parent, const char *msg, mportIndexEntry **choices, int
 
 	content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
 	image = create_app_icon_image(48);
-	label = gtk_label_new(msg);
+	label = gtk_label_new(msg ? msg : "");
 	gtk_label_set_xalign(GTK_LABEL(label), 0.0f);
 	gtk_label_set_wrap(GTK_LABEL(label), TRUE);
 
@@ -1763,7 +1763,8 @@ populate_remote_index(GtkTreeStore *store)
 
 	g_hash_table_destroy(installed_set);
 	mport_index_entry_free_vec(indexEntriesHead);
-	mport_pkgmeta_vec_free(packsHead);
+	if (packsHead != NULL)
+		mport_pkgmeta_vec_free(packsHead);
 }
 
 static void
@@ -1904,7 +1905,7 @@ populate_update_packages(GtkTreeStore *store)
 			int os_cmp = ((*pack)->os_release != NULL) ? mport_version_cmp((*pack)->os_release, os_release) : 0;
 
 			g_debug("Package: %s, Installed: %s, Available: %s, OS: %s",
-					(*pack)->name, (*pack)->version, (*entry)->version, (*pack)->os_release);
+					(*pack)->name, (*pack)->version, (*entry)->version, (*pack)->os_release ? (*pack)->os_release : "NULL");
 
 			if (version_cmp < 0 || os_cmp < 0)
 			{
@@ -1947,6 +1948,8 @@ lookup_for_lock(mportInstance *mport, const char *packageName)
 
 	if (mport_pkgmeta_search_master(mport, &packs, "pkg=%Q", packageName) != MPORT_OK) {
 		warnx("%s", mport_err_string());
+		if (packs != NULL)
+			mport_pkgmeta_vec_free(packs);
 		return (NULL);
 	}
 
