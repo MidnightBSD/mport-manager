@@ -1,0 +1,59 @@
+#!/usr/bin/env atf-sh
+
+copy_project()
+{
+	srcdir="$(atf_get_srcdir)"
+	repo="${srcdir}/.."
+
+	cp "${repo}/Makefile" .
+	cp "${repo}/mport-manager.c" .
+	cp "${repo}/icon.png" .
+	cp "${repo}/mport-manager.desktop" .
+	cp "${repo}/org.midnightbsd.mport-manager.policy" .
+}
+
+atf_test_case builds_from_clean_tree
+builds_from_clean_tree_head()
+{
+	atf_set "descr" "Build mport-manager from a clean temporary tree"
+}
+
+builds_from_clean_tree_body()
+{
+	copy_project
+
+	atf_check -s exit:0 -o ignore -e ignore make all
+	atf_check -s exit:0 test -x mport-manager
+}
+
+atf_test_case installs_desktop_policy_resources
+installs_desktop_policy_resources_head()
+{
+	atf_set "descr" "Install target stages executable, desktop, icon, and polkit files"
+}
+
+installs_desktop_policy_resources_body()
+{
+	copy_project
+
+	atf_check -s exit:0 -o ignore -e ignore make all
+	atf_check -s exit:0 -o ignore -e ignore make DESTDIR="${PWD}/stage" install
+
+	atf_check -s exit:0 test -x stage/usr/local/bin/mport-manager
+	atf_check -s exit:0 test -f stage/usr/local/share/mport/icon.png
+	atf_check -s exit:0 test -f stage/usr/local/share/icons/hicolor/48x48/apps/mport-manager.png
+	atf_check -s exit:0 test -f stage/usr/local/share/applications/mport-manager.desktop
+	atf_check -s exit:0 test -f stage/usr/local/share/polkit-1/actions/org.midnightbsd.mport-manager.policy
+
+	atf_check -s exit:0 -o match:"^Exec=pkexec /usr/local/bin/mport-manager$" \
+		grep "^Exec=" stage/usr/local/share/applications/mport-manager.desktop
+	atf_check -s exit:0 -o match:"/usr/local/bin/mport-manager" \
+		grep "org.freedesktop.policykit.exec.path" \
+		stage/usr/local/share/polkit-1/actions/org.midnightbsd.mport-manager.policy
+}
+
+atf_init_test_cases()
+{
+	atf_add_test_case builds_from_clean_tree
+	atf_add_test_case installs_desktop_policy_resources
+}
