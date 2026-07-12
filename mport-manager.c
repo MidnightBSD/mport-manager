@@ -1104,6 +1104,11 @@ install(mportInstance *mport, const char *packageName)
 		while (*i2 != NULL)
 		{
 			char *package_info;
+			if ((*i2)->pkgname == NULL || (*i2)->version == NULL) {
+				gtk_window_destroy(GTK_WINDOW(dialog));
+				mport_index_entry_free_vec(indexEntryHead);
+				return MPORT_ERR_WARN;
+			}
 			if (asprintf(&package_info, "%s-%s", (*i2)->pkgname, (*i2)->version) == -1)
 			{
 				gtk_window_destroy(GTK_WINDOW(dialog));
@@ -1146,6 +1151,10 @@ install(mportInstance *mport, const char *packageName)
 	}
 
 	// Perform the actual installation
+	if ((*indexEntry)->pkgname == NULL || (*indexEntry)->version == NULL) {
+		mport_index_entry_free_vec(indexEntryHead);
+		return MPORT_ERR_WARN;
+	}
 	g_print("Starting installation of package: %s version: %s\n", (*indexEntry)->pkgname, (*indexEntry)->version);
  
 	g_print("Calling install_depends...\n");
@@ -1187,8 +1196,8 @@ install_depends(mportInstance *mport, const char *packageName, const char *versi
 static int
 install_depends_limited(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic, unsigned int depth)
 {
-        mportPackageMeta **packs;
-        mportDependsEntry **depends;
+	mportPackageMeta **packs = NULL;
+	mportDependsEntry **depends = NULL;
         int resultCode;
 
         if (packageName == NULL || version == NULL)
@@ -2179,10 +2188,19 @@ maintenance_mirror_clicked(GtkButton *button, GtkWindow *parent)
 	mirrorEntry_orig = mirrorEntry;
 
 	long fastest = 99999;
-	const char *country = "us";
+	char country[sizeof(((mportMirrorEntry *)0)->country)] = "us";
 
 	while (mirrorEntry != NULL && *mirrorEntry != NULL) {
+		if ((*mirrorEntry)->url[0] == '\0') {
+			mirrorEntry++;
+			continue;
+		}
 		char *url_copy = g_strdup((*mirrorEntry)->url);
+		if (url_copy == NULL) {
+			append_log_message("Unable to allocate mirror URL buffer.");
+			mirrorEntry++;
+			continue;
+		}
 		char *p = strchr(url_copy, '/');
 		if (p != NULL) {
 			p++;
@@ -2210,7 +2228,7 @@ maintenance_mirror_clicked(GtkButton *button, GtkWindow *parent)
 			append_log_message(rtt_log);
 			if (rtt < fastest) {
 				fastest = rtt;
-				country = (*mirrorEntry)->country;
+				strlcpy(country, (*mirrorEntry)->country, sizeof(country));
 			}
 		} else {
 			append_log_message("Mirror timed out.");
@@ -2241,8 +2259,14 @@ on_import_response(GtkNativeDialog *dialog, int response_id, gpointer user_data)
 	if (response_id == GTK_RESPONSE_ACCEPT) {
 		GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
 		GFile *file = gtk_file_chooser_get_file(chooser);
-		char *filename = g_file_get_path(file);
-		g_object_unref(file);
+		char *filename = file == NULL ? NULL : g_file_get_path(file);
+		if (file != NULL)
+			g_object_unref(file);
+		if (filename == NULL) {
+			msgbox(GTK_WINDOW(user_data), "No valid package list file was selected.");
+			g_object_unref(dialog);
+			return;
+		}
 
 		append_log_message("Importing packages...");
 		int resultCode = mport_import(mport, filename);
@@ -2284,8 +2308,14 @@ on_export_response(GtkNativeDialog *dialog, int response_id, gpointer user_data)
 	if (response_id == GTK_RESPONSE_ACCEPT) {
 		GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
 		GFile *file = gtk_file_chooser_get_file(chooser);
-		char *filename = g_file_get_path(file);
-		g_object_unref(file);
+		char *filename = file == NULL ? NULL : g_file_get_path(file);
+		if (file != NULL)
+			g_object_unref(file);
+		if (filename == NULL) {
+			msgbox(GTK_WINDOW(user_data), "No valid package list path was selected.");
+			g_object_unref(dialog);
+			return;
+		}
 
 		append_log_message("Exporting packages...");
 		int resultCode = mport_export(mport, filename);
@@ -2334,6 +2364,7 @@ installed_audit_button_clicked(GtkButton *button, GtkWidget *parent)
 		g_autofree gchar *res_log = g_strdup_printf("No known vulnerabilities for %s.", selectedInstalled);
 		append_log_message(res_log);
 		msgbox(GTK_WINDOW(parent), "No known vulnerabilities found.");
+		free(output);
 	} else {
 		append_log_message(output);
 		msgbox_modal(GTK_WINDOW(parent), "Vulnerability Audit Report", "_Close", output);
