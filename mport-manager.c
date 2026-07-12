@@ -599,7 +599,7 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 {
 	GtkTreeIter iter;
 	GtkTreeModel *model;
-	mportIndexEntry **indexEntries;
+	mportIndexEntry **indexEntries = NULL;
 
 	reset_progress_bar();
 
@@ -611,6 +611,11 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 
 		gtk_tree_model_get(model, &iter, TITLE_COLUMN, &name, -1);
 		gtk_tree_model_get(model, &iter, VERSION_COLUMN, &version, -1);
+		if (name == NULL || version == NULL) {
+			g_free(name);
+			g_free(version);
+			return;
+		}
 
 		if (mport_index_lookup_pkgname(mport, name, &indexEntries) != MPORT_OK) {
 			char *msg;
@@ -628,10 +633,10 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 			while (*indexEntries != NULL) {
 				if ((*indexEntries)->version != NULL && mport_version_cmp(version, (*indexEntries)->version) == 0) {
 
-					gtk_label_set_text(GTK_LABEL(detail.label), (*indexEntries)->comment);
+					gtk_label_set_text(GTK_LABEL(detail.label), (*indexEntries)->comment ? (*indexEntries)->comment : "");
 					gtk_label_set_text(GTK_LABEL(detail.labelVersion), (*indexEntries)->version);
-					gtk_label_set_text(GTK_LABEL(detail.labelName), (*indexEntries)->pkgname);
-					gtk_label_set_text(GTK_LABEL(detail.labelLicense), (*indexEntries)->license);
+					gtk_label_set_text(GTK_LABEL(detail.labelName), (*indexEntries)->pkgname ? (*indexEntries)->pkgname : "");
+					gtk_label_set_text(GTK_LABEL(detail.labelLicense), (*indexEntries)->license ? (*indexEntries)->license : "");
 					gtk_label_set_text(GTK_LABEL(detail.labelType), (*indexEntries)->type == MPORT_TYPE_SYSTEM ? "System" : "Application");
 
 					break;
@@ -917,7 +922,7 @@ update_button_clicked(GtkButton *button, GtkWindow *parent)
 mportIndexEntry **
 lookupIndex(mportInstance *mport, const char *packageName)
 {
-	mportIndexEntry **indexEntries;
+	mportIndexEntry **indexEntries = NULL;
 
 	if (mport_index_lookup_pkgname(mport, packageName, &indexEntries) != MPORT_OK)
 	{
@@ -1223,11 +1228,11 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
                 return mport_err_code();
         }
 
-        gboolean installed = (packs != NULL && *packs != NULL);
-        if (installed) {
-                if (mport_version_cmp((*packs)->version, version) < 0) {
-                        installed = FALSE;
-                }
+		gboolean installed = (packs != NULL && *packs != NULL);
+		if (installed) {
+				if ((*packs)->version == NULL || mport_version_cmp((*packs)->version, version) < 0) {
+					installed = FALSE;
+				}
         }
 
         if (!installed) {
@@ -1741,7 +1746,7 @@ create_update_tree(void)
 static void
 search_remote_index(GtkTreeStore *store, const char *query)
 {
-	mportIndexEntry **packs;
+	mportIndexEntry **packs = NULL;
 	mportIndexEntry **packsHead;
 
 	if (query == NULL || query[0] == '\0') {
@@ -1754,6 +1759,8 @@ search_remote_index(GtkTreeStore *store, const char *query)
 		mport_instance_free(mport);
 		exit(1);
 	}
+	if (packs == NULL)
+		return;
 	packsHead = packs;
 
 	if (tree != NULL) {
@@ -1782,9 +1789,9 @@ search_remote_index(GtkTreeStore *store, const char *query)
 static void
 populate_remote_index(GtkTreeStore *store)
 {
-	mportIndexEntry **indexEntries;
+	mportIndexEntry **indexEntries = NULL;
 	mportIndexEntry **indexEntriesHead;
-	mportPackageMeta **packs;
+	mportPackageMeta **packs = NULL;
 	mportPackageMeta **packsHead;
 
 	if (mport_index_list(mport, &indexEntries) != MPORT_OK) {
@@ -1792,6 +1799,8 @@ populate_remote_index(GtkTreeStore *store)
 		mport_instance_free(mport);
 		exit(1);
 	}
+	if (indexEntries == NULL)
+		return;
 	indexEntriesHead = indexEntries;
 
 	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
@@ -1862,7 +1871,7 @@ populate_remote_index(GtkTreeStore *store)
 static void
 populate_installed_packages(GtkTreeStore *store)
 {
-	mportPackageMeta **packs;
+	mportPackageMeta **packs = NULL;
 	char flatsize_str[32];
 
     g_print("Starting populate_installed_packages\n");
