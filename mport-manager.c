@@ -1224,6 +1224,8 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
 
         if (mport_pkgmeta_search_master(mport, &packs, "pkg=%Q", packageName) != MPORT_OK) {
                 msgbox(GTK_WINDOW(window), mport_err_string());
+                if (packs != NULL)
+                        mport_pkgmeta_vec_free(packs);
                 mport_index_depends_free_vec(depends);
                 return mport_err_code();
         }
@@ -1298,6 +1300,8 @@ delete(const char *packageName)
     if (mport_pkgmeta_search_master(mport, &packs, where, packageName) != MPORT_OK) {
 		g_print("package lookup failure %s: %s\n", packageName, mport_err_string());
         msgbox(GTK_WINDOW(window), mport_err_string());
+        if (packs != NULL)
+                mport_pkgmeta_vec_free(packs);
         return MPORT_ERR_FATAL;
     }
 
