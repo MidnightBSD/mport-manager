@@ -109,7 +109,7 @@ static void reload_installed(void);
 static void reload_updates(void);
 static void refresh_stats(void);
 static void do_search(void);
-static void button_clicked(GtkButton *button, GtkWindow *parent);
+static void button_clicked(const GtkButton *button, const GtkWindow *parent);
 static void reset_search_button_clicked(GtkButton *button, GtkWindow *parent);
 static void update_button_clicked(GtkButton *button, GtkWindow *parent);
 static void install_button_clicked(GtkButton *button, GtkWidget *parent);
@@ -166,7 +166,7 @@ static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path
 static void installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 static void available_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
 static void installed_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
-void reset_progress_bar(void);
+static void reset_progress_bar(void);
 static void lock_button_clicked(GtkButton *button, GtkWidget *parent);
 static void unlock_button_clicked(GtkButton *button, GtkWidget *parent);
 static mportPackageMeta** lookup_for_lock(mportInstance *mport, const char *packageName);
@@ -182,12 +182,12 @@ static int lock(mportInstance *mport, const char *packageName);
 static int unlock(mportInstance *mport, const char *packageName);
 
 /* Callbacks */
-void mport_gtk_msg_cb(const char *msg);
-int mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def);
-int mport_gtk_select_cb(const char *msg, mportIndexEntry **choices, int def);
-void mport_gtk_progress_init_cb(const char *title);
-void mport_gtk_progress_step_cb(int current, int total, const char *msg);
-void mport_gtk_progress_free_cb(void);
+static void mport_gtk_msg_cb(const char *msg);
+static int mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def);
+static int mport_gtk_select_cb(const char *msg, mportIndexEntry **choices, int def);
+static void mport_gtk_progress_init_cb(const char *title);
+static void mport_gtk_progress_step_cb(int current, int total, const char *msg);
+static void mport_gtk_progress_free_cb(void);
 
 static void
 activate(GtkApplication *app, gpointer user_data)
@@ -429,14 +429,14 @@ main(int argc, char *argv[])
 	return status;
 }
 
-void
+static void
 mport_gtk_msg_cb(const char *msg)
 {
 
 	append_log_message(msg);
 }
 
-int
+static int
 mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def)
 {
 	bool response;
@@ -448,13 +448,13 @@ mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def)
 		return -1;
 }
 
-int
+static int
 mport_gtk_select_cb(const char *msg, mportIndexEntry **choices, int def)
 {
 	return msgbox_select(GTK_WINDOW(window), msg, choices, def);
 }
 
-void
+static void
 mport_gtk_progress_init_cb(const char *title)
 {
 
@@ -464,7 +464,7 @@ mport_gtk_progress_init_cb(const char *title)
 	append_log_message(title);
 }
 
-void
+static void
 mport_gtk_progress_step_cb(int current, int total, const char *msg)
 {
 	gdouble percent;
@@ -487,7 +487,7 @@ mport_gtk_progress_step_cb(int current, int total, const char *msg)
 	}
 }
 
-void
+static void
 mport_gtk_progress_free_cb(void)
 {
 	if (progressBar == NULL)
@@ -497,7 +497,7 @@ mport_gtk_progress_free_cb(void)
 	append_log_message("Task Completed");
 }
 
-void
+static void
 reset_progress_bar(void)
 {
 	if (progressBar == NULL)
@@ -937,7 +937,7 @@ lookupIndex(mportInstance *mport, const char *packageName)
 }
 
 static void
-button_clicked(GtkButton *button, GtkWindow *parent)
+button_clicked(const GtkButton *button, const GtkWindow *parent)
 {
 
 	do_search();
@@ -1012,10 +1012,8 @@ install_button_clicked(GtkButton *button, GtkWidget *parent)
 static void
 installed_delete_button_clicked(GtkButton *button, GtkWidget *parent)
 {
-	int result = 0;
-
 	if (selectedInstalled[0] != '\0') {
-		result = delete(selectedInstalled);
+		int result = delete(selectedInstalled);
 		g_print("Delete %s returned %d", selectedInstalled, result);
 
 		/* reload search data after delete */
@@ -1067,9 +1065,7 @@ install(mportInstance *mport, const char *packageName)
 {
 	mportIndexEntry **indexEntry;
 	mportIndexEntry **indexEntryHead;
-	mportIndexEntry **i2;
 	int resultCode = MPORT_OK;
-	int item;
 
 	indexEntry = lookupIndex(mport, packageName);
 	indexEntryHead = indexEntry;
@@ -1104,8 +1100,8 @@ install(mportInstance *mport, const char *packageName)
 		content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
 		combo_box = gtk_combo_box_text_new();
 
-		i2 = indexEntry;
-		item = 0;
+		mportIndexEntry **i2 = indexEntry;
+		int item = 0;
 		while (*i2 != NULL)
 		{
 			char *package_info;
@@ -1203,7 +1199,6 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
 {
 	mportPackageMeta **packs = NULL;
 	mportDependsEntry **depends = NULL;
-        int resultCode;
 
         if (packageName == NULL || version == NULL)
                 return (MPORT_ERR_FATAL);
@@ -1256,7 +1251,7 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
                         while (*depends != NULL) {
                                 g_print("Installing dependency: %s version: %s\n", (*depends)->d_pkgname, (*depends)->d_version);
 
-                                resultCode = install_depends_limited(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC, depth + 1);
+					int resultCode = install_depends_limited(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC, depth + 1);
                                 if (resultCode != MPORT_OK) {
                                         mport_index_depends_free_vec(dependsHead);
                                         return resultCode;
@@ -2131,12 +2126,47 @@ static void
 maintenance_clean_clicked(GtkButton *button, GtkWindow *parent)
 {
 	append_log_message("Starting cache cleanup...");
-	mport_clean_database(mport);
-	mport_clean_oldpackages(mport);
-	mport_clean_oldmtree(mport);
-	mport_clean_tempfiles(mport);
-	append_log_message("Cache cleanup completed.");
-	msgbox(parent, "Cache cleanup completed successfully.");
+	int failures = 0;
+	int result;
+
+	result = mport_clean_database(mport);
+	if (result != MPORT_OK) {
+		failures++;
+		g_autofree gchar *message = g_strdup_printf("Database cleanup failed: %s", mport_err_string());
+		append_log_message(message);
+	}
+
+	result = mport_clean_oldpackages(mport);
+	if (result != MPORT_OK) {
+		failures++;
+		g_autofree gchar *message = g_strdup_printf("Old package cleanup failed: %s", mport_err_string());
+		append_log_message(message);
+	}
+
+	result = mport_clean_oldmtree(mport);
+	if (result != MPORT_OK) {
+		failures++;
+		g_autofree gchar *message = g_strdup_printf("Old mtree cleanup failed: %s", mport_err_string());
+		append_log_message(message);
+	}
+
+	result = mport_clean_tempfiles(mport);
+	if (result != MPORT_OK) {
+		failures++;
+		g_autofree gchar *message = g_strdup_printf("Temporary file cleanup failed: %s", mport_err_string());
+		append_log_message(message);
+	}
+
+	if (failures == 0) {
+		append_log_message("Cache cleanup completed.");
+		msgbox(parent, "Cache cleanup completed successfully.");
+	} else {
+		g_autofree gchar *message = g_strdup_printf(
+			"Cache cleanup completed with %d failed operation%s. See the log for details.",
+			failures, failures == 1 ? "" : "s");
+		append_log_message(message);
+		msgbox(parent, message);
+	}
 	refresh_stats();
 }
 
