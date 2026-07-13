@@ -16,7 +16,7 @@ mport-manager: mport-manager.c mport-progress.c
 	${CC} ${CFLAGS} ${LDFLAGS} -o mport-manager mport-manager.c mport-progress.c
 
 tests/reset_progress_bar_test: tests/reset_progress_bar_test.c mport-progress.c
-	${CC} -Wall -std=c99 -O2 -I. -DTEST_SUITE `pkg-config --cflags atf-c` -o tests/reset_progress_bar_test tests/reset_progress_bar_test.c mport-progress.c `pkg-config --libs atf-c`
+	${CC} -Wall -pedantic -std=c99 -O2 -I. -DTEST_SUITE -o tests/reset_progress_bar_test tests/reset_progress_bar_test.c mport-progress.c -latf-c
 
 test: tests/reset_progress_bar_test
 	kyua test -k Kyuafile
