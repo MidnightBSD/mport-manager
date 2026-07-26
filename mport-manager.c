@@ -52,6 +52,15 @@ GtkWidget *progressBar = NULL;
 GtkWidget *logView = NULL;
 GtkTextBuffer *logBuffer = NULL;
 
+/*
+ * Action buttons that must not be usable while an mport operation is running.
+ * The progress and verification callbacks pump the main loop from inside
+ * libmport, so without this a second click would re-enter libmport on the
+ * same mportInstance.
+ */
+static GPtrArray *actionWidgets = NULL;
+static gboolean operationInProgress = FALSE;
+
 mportInstance *mport;
 
 struct available_detail {
@@ -167,6 +176,9 @@ static void installed_tree_available_row_click_handler(GtkTreeView *treeView, Gt
 static void available_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
 static void installed_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
 static void reset_progress_bar(void);
+static void register_action_widget(GtkWidget *widget);
+static gboolean begin_operation(void);
+static void end_operation(void);
 static void lock_button_clicked(GtkButton *button, GtkWidget *parent);
 static void unlock_button_clicked(GtkButton *button, GtkWidget *parent);
 static mportPackageMeta** lookup_for_lock(mportInstance *mport, const char *packageName);
@@ -259,6 +271,9 @@ activate(GtkApplication *app, gpointer user_data)
 	                 G_CALLBACK(reset_search_button_clicked),
 	                 (gpointer) window);
 
+	register_action_widget(submit);
+	register_action_widget(resetSearchButton);
+
 	setup_tree();
 	create_installed_tree();
 	create_update_tree();
@@ -331,6 +346,10 @@ activate(GtkApplication *app, gpointer user_data)
 	gtk_widget_set_hexpand(lockButton, TRUE);
 	gtk_widget_set_hexpand(unlockButton, TRUE);
 	gtk_widget_set_hexpand(auditButton, TRUE);
+	register_action_widget(removeInstalledAppButton);
+	register_action_widget(lockButton);
+	register_action_widget(unlockButton);
+	register_action_widget(auditButton);
 	gtk_box_append(GTK_BOX(installedBox), buttonBox);
 
 
@@ -349,6 +368,7 @@ activate(GtkApplication *app, gpointer user_data)
 	gtk_box_append(GTK_BOX(updateBox), scrolled_updates);
 	gtk_widget_set_vexpand(scrolled_updates, TRUE);
 	gtk_box_append(GTK_BOX(updateBox), updateButton);
+	register_action_widget(updateButton);
 	// create stats box
 	GtkWidget *statsBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 	create_stats_box(statsBox);
@@ -386,7 +406,15 @@ activate(GtkApplication *app, gpointer user_data)
 	GtkWidget *exportBtn = gtk_button_new_with_label("Export Installed Packages List...");
 	g_signal_connect(G_OBJECT(exportBtn), "clicked", G_CALLBACK(maintenance_export_clicked), window);
 	gtk_box_append(GTK_BOX(maintenanceBox), exportBtn);
-	
+
+	register_action_widget(autoremoveBtn);
+	register_action_widget(cleanBtn);
+	register_action_widget(verifyBtn);
+	register_action_widget(mirrorBtn);
+	register_action_widget(importBtn);
+	register_action_widget(exportBtn);
+
+
 	// add all the stacks
 	gtk_stack_add_titled(GTK_STACK(stack), vbox, "page-1", "Available Software");
 	gtk_stack_add_titled(GTK_STACK(stack), installedBox, "page-2", "Installed Software");
@@ -507,10 +535,68 @@ reset_progress_bar(void)
 	gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(progressBar), 0.0);
 }
 
+/*
+ * Remember an action widget so begin_operation()/end_operation() can toggle it.
+ * The widgets live for the lifetime of the main window, which outlives every
+ * operation, so no weak references are needed.
+ */
+static void
+register_action_widget(GtkWidget *widget)
+{
+
+	if (widget == NULL)
+		return;
+
+	if (actionWidgets == NULL)
+		actionWidgets = g_ptr_array_new();
+
+	g_ptr_array_add(actionWidgets, widget);
+}
+
+static void
+set_actions_sensitive(gboolean sensitive)
+{
+
+	if (actionWidgets == NULL)
+		return;
+
+	for (guint i = 0; i < actionWidgets->len; i++)
+		gtk_widget_set_sensitive(GTK_WIDGET(g_ptr_array_index(actionWidgets, i)), sensitive);
+}
+
+/*
+ * Claim the right to run an mport operation.  Returns FALSE when one is
+ * already in flight, in which case the caller must return without touching
+ * the mport instance.
+ */
+static gboolean
+begin_operation(void)
+{
+
+	if (operationInProgress)
+		return FALSE;
+
+	operationInProgress = TRUE;
+	set_actions_sensitive(FALSE);
+
+	return TRUE;
+}
+
+static void
+end_operation(void)
+{
+
+	operationInProgress = FALSE;
+	set_actions_sensitive(TRUE);
+}
+
 static void
 lock_button_clicked(GtkButton *button, GtkWidget *parent)
 {
 	g_print("Lock button clicked. Selected package: %s\n", selectedInstalled);
+
+	if (!begin_operation())
+		return;
 
     if (selectedInstalled[0] != '\0') {
         int result = lock(mport, selectedInstalled);
@@ -525,12 +611,17 @@ lock_button_clicked(GtkButton *button, GtkWidget *parent)
     } else {
         msgbox(GTK_WINDOW(window), "Please select a package to lock.");
     }
+
+	end_operation();
 }
 
 static void
 unlock_button_clicked(GtkButton *button, GtkWidget *parent)
 {
 	g_print("Unlock button clicked. Selected package: %s\n", selectedInstalled);
+
+	if (!begin_operation())
+		return;
 
     if (selectedInstalled[0] != '\0') {
         int result = unlock(mport, selectedInstalled);
@@ -545,6 +636,8 @@ unlock_button_clicked(GtkButton *button, GtkWidget *parent)
     } else {
         msgbox(GTK_WINDOW(window), "Please select a package to unlock.");
     }
+
+	end_operation();
 }
 
 
@@ -585,6 +678,10 @@ installed_cursor_changed_handler(GtkTreeView *treeView, gpointer data)
 	GtkTreePath *path = NULL;
 	GtkTreeViewColumn *column = NULL;
 
+	/* the tree stores are rebuilt underneath us during an operation. */
+	if (operationInProgress)
+		return;
+
 	gtk_tree_view_get_cursor(treeView, &path, &column);
 	if (path == NULL)
 		return;
@@ -623,6 +720,9 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 				(mport->msg_cb)(msg);
 				free(msg);
 			}
+			/* the lookup allocates the vector before it can fail, so a
+			   partially populated vector may still be attached. */
+			mport_index_entry_free_vec(indexEntries);
 			g_free(name);
 			g_free(version);
 			return;
@@ -660,6 +760,11 @@ available_cursor_changed_handler(GtkTreeView *treeView, gpointer data)
 {
 	GtkTreePath *path = NULL;
 	GtkTreeViewColumn *column = NULL;
+
+	/* this handler queries the index; don't re-enter libmport while an
+	   operation is pumping the main loop from inside a callback. */
+	if (operationInProgress)
+		return;
 
 	gtk_tree_view_get_cursor(treeView, &path, &column);
 	if (path == NULL)
@@ -810,6 +915,7 @@ create_detail_box(GtkWidget *parent)
 	                 (gpointer) parent);
 	gtk_box_append(GTK_BOX(buttonBox), detail.installButton);
 	gtk_widget_set_hexpand(detail.installButton, TRUE);
+	register_action_widget(detail.installButton);
 
 	// set up placeholders for detail view
 	detail.label = gtk_label_new("");
@@ -905,6 +1011,9 @@ create_header_bar(GtkWidget *window, GtkWidget *search)
 static void
 update_button_clicked(GtkButton *button, GtkWindow *parent)
 {
+	if (!begin_operation())
+		return;
+
 	append_log_message("Starting upgrade...");
 
 	int resultCode = mport_upgrade(mport);
@@ -916,6 +1025,8 @@ update_button_clicked(GtkButton *button, GtkWindow *parent)
 	}
 
 	refresh_stats();
+
+	end_operation();
 }
 
 
@@ -930,6 +1041,9 @@ lookupIndex(mportInstance *mport, const char *packageName)
 			"Error looking up package name %s: %d %s\n",
 			packageName, mport_err_code(), mport_err_string());
 		msgbox_modal(GTK_WINDOW(window), "Error", "_Close", message);
+		/* the lookup allocates the vector before it can fail, so a
+		   partially populated vector may still be attached. */
+		mport_index_entry_free_vec(indexEntries);
 		return (NULL);
 	}
 
@@ -940,7 +1054,12 @@ static void
 button_clicked(const GtkButton *button, const GtkWindow *parent)
 {
 
+	if (!begin_operation())
+		return;
+
 	do_search();
+
+	end_operation();
 }
 
 static void
@@ -984,8 +1103,13 @@ static void
 reset_search_button_clicked(GtkButton *button, GtkWindow *parent)
 {
 
+	if (!begin_operation())
+		return;
+
 	gtk_editable_set_text(GTK_EDITABLE(search), "");
 	do_search();
+
+	end_operation();
 }
 
 static void
@@ -993,10 +1117,14 @@ install_button_clicked(GtkButton *button, GtkWidget *parent)
 {
 	int resultCode = 0;
 
+	if (!begin_operation())
+		return;
+
 	const gchar *c = gtk_label_get_text(GTK_LABEL(detail.labelName));
 	if (c == NULL)
 	{
 		msgbox(GTK_WINDOW(window), "mport package name not defined.");
+		end_operation();
 		return;
 	}
 	resultCode = install(mport, c);
@@ -1007,11 +1135,16 @@ install_button_clicked(GtkButton *button, GtkWidget *parent)
 	reload_updates();
 	refresh_stats();
 	do_search();
+
+	end_operation();
 }
 
 static void
 installed_delete_button_clicked(GtkButton *button, GtkWidget *parent)
 {
+	if (!begin_operation())
+		return;
+
 	if (selectedInstalled[0] != '\0') {
 		int result = delete(selectedInstalled);
 		g_print("Delete %s returned %d", selectedInstalled, result);
@@ -1022,6 +1155,8 @@ installed_delete_button_clicked(GtkButton *button, GtkWidget *parent)
 		refresh_stats();
 		do_search();
 	}
+
+	end_operation();
 }
 
 static void
@@ -1214,6 +1349,9 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
 
         if (mport_index_depends_list(mport, packageName, version, &depends) != MPORT_OK) {
                 msgbox(GTK_WINDOW(window), mport_err_string());
+                /* the listing allocates the vector before it can fail, so a
+                   partially populated vector may still be attached. */
+                mport_index_depends_free_vec(depends);
                 return mport_err_code();
         }
 
@@ -1962,6 +2100,9 @@ populate_update_packages(GtkTreeStore *store)
 	mportIndexEntry **indexList = NULL;
 	if (mport_index_list(mport, &indexList) != MPORT_OK) {
 		g_warning("Failed to get remote index list: %s", mport_err_string());
+		/* the listing allocates the vector before it can fail, so a
+		   partially populated vector may still be attached. */
+		mport_index_entry_free_vec(indexList);
 		mport_pkgmeta_vec_free(packs);
 		free(os_release);
 		return;
@@ -2108,6 +2249,9 @@ unlock(mportInstance *mport, const char *packageName)
 static void
 maintenance_autoremove_clicked(GtkButton *button, GtkWindow *parent)
 {
+	if (!begin_operation())
+		return;
+
 	append_log_message("Starting autoremove...");
 	int resultCode = mport_autoremove(mport);
 	if (resultCode != MPORT_OK) {
@@ -2120,14 +2264,20 @@ maintenance_autoremove_clicked(GtkButton *button, GtkWindow *parent)
 	reload_installed();
 	reload_updates();
 	refresh_stats();
+
+	end_operation();
 }
 
 static void
 maintenance_clean_clicked(GtkButton *button, GtkWindow *parent)
 {
-	append_log_message("Starting cache cleanup...");
 	int failures = 0;
 	int result;
+
+	if (!begin_operation())
+		return;
+
+	append_log_message("Starting cache cleanup...");
 
 	result = mport_clean_database(mport);
 	if (result != MPORT_OK) {
@@ -2168,16 +2318,23 @@ maintenance_clean_clicked(GtkButton *button, GtkWindow *parent)
 		msgbox(parent, message);
 	}
 	refresh_stats();
+
+	end_operation();
 }
 
 static void
 maintenance_verify_clicked(GtkButton *button, GtkWindow *parent)
 {
-	append_log_message("Starting packages verification...");
 	mportPackageMeta **packs = NULL;
+
+	if (!begin_operation())
+		return;
+
+	append_log_message("Starting packages verification...");
 	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
 		append_log_message("Failed to retrieve package list.");
 		msgbox(parent, "Failed to retrieve package list.");
+		end_operation();
 		return;
 	}
 
@@ -2186,6 +2343,7 @@ maintenance_verify_clicked(GtkButton *button, GtkWindow *parent)
 		msgbox(parent, "No packages installed.");
 		if (packs != NULL)
 			mport_pkgmeta_vec_free(packs);
+		end_operation();
 		return;
 	}
 
@@ -2213,19 +2371,26 @@ maintenance_verify_clicked(GtkButton *button, GtkWindow *parent)
 	} else {
 		msgbox(parent, "Verification complete. All packages verified successfully.");
 	}
+
+	end_operation();
 }
 
 static void
 maintenance_mirror_clicked(GtkButton *button, GtkWindow *parent)
 {
-	append_log_message("Detecting fastest mirror...");
 	mportMirrorEntry **mirrorEntry = NULL;
 	mportMirrorEntry **mirrorEntry_orig = NULL;
 	char hostname[256];
 
+	if (!begin_operation())
+		return;
+
+	append_log_message("Detecting fastest mirror...");
+
 	if (mport_index_mirror_list(mport, &mirrorEntry) != MPORT_OK) {
 		append_log_message("Failed to fetch mirror list.");
 		msgbox(parent, "Failed to fetch mirror list.");
+		end_operation();
 		return;
 	}
 	mirrorEntry_orig = mirrorEntry;
@@ -2294,6 +2459,8 @@ maintenance_mirror_clicked(GtkButton *button, GtkWindow *parent)
 		g_autofree gchar *msg = g_strdup_printf("Mirror set to region: %s", country);
 		msgbox(parent, msg);
 	}
+
+	end_operation();
 }
 
 static void
@@ -2308,6 +2475,7 @@ on_import_response(GtkNativeDialog *dialog, int response_id, gpointer user_data)
 		if (filename == NULL) {
 			msgbox(GTK_WINDOW(user_data), "No valid package list file was selected.");
 			g_object_unref(dialog);
+			end_operation();
 			return;
 		}
 
@@ -2327,6 +2495,7 @@ on_import_response(GtkNativeDialog *dialog, int response_id, gpointer user_data)
 		g_free(filename);
 	}
 	g_object_unref(dialog);
+	end_operation();
 }
 
 static void
@@ -2334,6 +2503,11 @@ maintenance_import_clicked(GtkButton *button, GtkWindow *parent)
 {
 	GtkFileChooserNative *native;
 	GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_OPEN;
+
+	/* held until on_import_response() runs, so the chooser cannot be
+	   opened twice or race another operation. */
+	if (!begin_operation())
+		return;
 
 	native = gtk_file_chooser_native_new("Open Package List",
 	                                     parent,
@@ -2357,6 +2531,7 @@ on_export_response(GtkNativeDialog *dialog, int response_id, gpointer user_data)
 		if (filename == NULL) {
 			msgbox(GTK_WINDOW(user_data), "No valid package list path was selected.");
 			g_object_unref(dialog);
+			end_operation();
 			return;
 		}
 
@@ -2373,6 +2548,7 @@ on_export_response(GtkNativeDialog *dialog, int response_id, gpointer user_data)
 		g_free(filename);
 	}
 	g_object_unref(dialog);
+	end_operation();
 }
 
 static void
@@ -2380,6 +2556,11 @@ maintenance_export_clicked(GtkButton *button, GtkWindow *parent)
 {
 	GtkFileChooserNative *native;
 	GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_SAVE;
+
+	/* held until on_export_response() runs, so the chooser cannot be
+	   opened twice or race another operation. */
+	if (!begin_operation())
+		return;
 
 	native = gtk_file_chooser_native_new("Save Package List",
 	                                     parent,
@@ -2394,8 +2575,12 @@ maintenance_export_clicked(GtkButton *button, GtkWindow *parent)
 static void
 installed_audit_button_clicked(GtkButton *button, GtkWidget *parent)
 {
+	if (!begin_operation())
+		return;
+
 	if (selectedInstalled[0] == '\0') {
 		msgbox(GTK_WINDOW(parent), "No package selected.");
+		end_operation();
 		return;
 	}
 
@@ -2413,4 +2598,6 @@ installed_audit_button_clicked(GtkButton *button, GtkWidget *parent)
 		msgbox_modal(GTK_WINDOW(parent), "Vulnerability Audit Report", "_Close", output);
 		free(output);
 	}
+
+	end_operation();
 }
