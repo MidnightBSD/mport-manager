@@ -38,6 +38,8 @@
 
 #include <mport.h>
 
+#include "mport-manager.h"
+
 #define NAME "MidnightBSD Package Manager"
 #define ICONFILE "/usr/local/share/mport/icon.png"
 #define MPORT_LOCAL_PKG_PATH "/var/db/mport/downloads"
@@ -175,7 +177,6 @@ static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path
 static void installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 static void available_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
 static void installed_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
-static void reset_progress_bar(void);
 static void register_action_widget(GtkWidget *widget);
 static gboolean begin_operation(void);
 static void end_operation(void);
@@ -197,9 +198,6 @@ static int unlock(mportInstance *mport, const char *packageName);
 static void mport_gtk_msg_cb(const char *msg);
 static int mport_gtk_confirm_cb(const char *msg, const char *yes, const char *no, int def);
 static int mport_gtk_select_cb(const char *msg, mportIndexEntry **choices, int def);
-static void mport_gtk_progress_init_cb(const char *title);
-static void mport_gtk_progress_step_cb(int current, int total, const char *msg);
-static void mport_gtk_progress_free_cb(void);
 
 static void
 activate(GtkApplication *app, gpointer user_data)
@@ -440,6 +438,7 @@ activate(GtkApplication *app, gpointer user_data)
 	gtk_window_present(GTK_WINDOW(window));
 }
 
+#ifndef MPORT_MANAGER_TESTING
 int
 main(int argc, char *argv[])
 {
@@ -456,6 +455,7 @@ main(int argc, char *argv[])
 	}
 	return status;
 }
+#endif
 
 static void
 mport_gtk_msg_cb(const char *msg)
@@ -482,7 +482,7 @@ mport_gtk_select_cb(const char *msg, mportIndexEntry **choices, int def)
 	return msgbox_select(GTK_WINDOW(window), msg, choices, def);
 }
 
-static void
+void
 mport_gtk_progress_init_cb(const char *title)
 {
 
@@ -492,7 +492,7 @@ mport_gtk_progress_init_cb(const char *title)
 	append_log_message(title);
 }
 
-static void
+void
 mport_gtk_progress_step_cb(int current, int total, const char *msg)
 {
 	gdouble percent;
@@ -515,7 +515,7 @@ mport_gtk_progress_step_cb(int current, int total, const char *msg)
 	}
 }
 
-static void
+void
 mport_gtk_progress_free_cb(void)
 {
 	if (progressBar == NULL)
@@ -525,7 +525,7 @@ mport_gtk_progress_free_cb(void)
 	append_log_message("Task Completed");
 }
 
-static void
+void
 reset_progress_bar(void)
 {
 	if (progressBar == NULL)

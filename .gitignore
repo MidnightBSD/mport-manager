@@ -1,4 +1,6 @@
 mport-manager
+tests/progress_test
+tests/mocks/*.a
 *.o
 
 CMakeLists.txt
