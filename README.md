@@ -15,11 +15,23 @@ To Install:
 sudo make install
 
 To run:
-sudo mport-manager
+Launch mport Package Manager from the application menu, or run
+`pkexec /usr/local/bin/mport-manager`. The desktop entry uses `pkexec`, and
+`make install` installs `org.midnightbsd.mport-manager.policy` with an action
+for `/usr/local/bin/mport-manager`. Polkit and a graphical authentication agent
+must be installed for menu launches. On Midnight Workspace, the installed
+autostart entry starts polkit-gnome when it is available.
+
+Polkit authentication also requires an active login session. When starting X11
+with a plain `.xinitrc` and ConsoleKit installed, launch the desktop with
+`exec ck-launch-session midnightbsd-session` (or wrap the chosen window manager
+in the same way). A display manager that already registered the session should
+launch the desktop directly instead of nesting a ConsoleKit session.
 
 ## Dependencies
 GTK 4
 policykit / pkexec
+polkit-gnome for graphical authentication in Midnight Workspace
 libmport
 
 ## Breaking Changes

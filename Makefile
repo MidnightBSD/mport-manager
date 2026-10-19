@@ -29,6 +29,8 @@ install:
 	install -m 444 mport-manager.desktop ${DESTDIR}${PREFIX}/share/applications/
 	mkdir -p ${DESTDIR}${PREFIX}/share/polkit-1/actions/
 	install -m 444 org.midnightbsd.mport-manager.policy ${DESTDIR}${PREFIX}/share/polkit-1/actions/
+	mkdir -p ${DESTDIR}${PREFIX}/etc/xdg/autostart
+	install -m 444 mport-manager-polkit-agent.desktop ${DESTDIR}${PREFIX}/etc/xdg/autostart/
 
 clean:
 	rm -f *.o mport-manager
