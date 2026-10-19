@@ -9,6 +9,7 @@ copy_project()
 	cp "${repo}/mport-manager.c" .
 	cp "${repo}/icon.png" .
 	cp "${repo}/mport-manager.desktop" .
+	cp "${repo}/mport-manager-polkit-agent.desktop" .
 	cp "${repo}/org.midnightbsd.mport-manager.policy" .
 }
 
@@ -43,6 +44,7 @@ installs_desktop_policy_resources_body()
 	atf_check -s exit:0 test -f stage/usr/local/share/mport/icon.png
 	atf_check -s exit:0 test -f stage/usr/local/share/icons/hicolor/48x48/apps/mport-manager.png
 	atf_check -s exit:0 test -f stage/usr/local/share/applications/mport-manager.desktop
+	atf_check -s exit:0 test -f stage/usr/local/etc/xdg/autostart/mport-manager-polkit-agent.desktop
 	atf_check -s exit:0 test -f stage/usr/local/share/polkit-1/actions/org.midnightbsd.mport-manager.policy
 
 	atf_check -s exit:0 -o match:"^Exec=pkexec /usr/local/bin/mport-manager$" \
@@ -50,6 +52,8 @@ installs_desktop_policy_resources_body()
 	atf_check -s exit:0 -o match:"/usr/local/bin/mport-manager" \
 		grep "org.freedesktop.policykit.exec.path" \
 		stage/usr/local/share/polkit-1/actions/org.midnightbsd.mport-manager.policy
+	atf_check -s exit:0 -o match:"^OnlyShowIn=MidnightWorkspace;$" \
+		grep "^OnlyShowIn=" stage/usr/local/etc/xdg/autostart/mport-manager-polkit-agent.desktop
 }
 
 atf_test_case dependency_recursion_has_limit
