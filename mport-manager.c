@@ -142,6 +142,66 @@ static void maintenance_import_clicked(GtkButton *button, GtkWindow *parent);
 static void maintenance_export_clicked(GtkButton *button, GtkWindow *parent);
 static void installed_audit_button_clicked(GtkButton *button, GtkWidget *parent);
 static void on_import_response(GtkNativeDialog *dialog, int response_id, gpointer user_data);
+
+static void
+installed_only_item_setup(GtkSignalListItemFactory *factory, GtkListItem *item, gpointer user_data)
+{
+	GtkWidget *label = gtk_label_new(NULL);
+	gtk_label_set_xalign(GTK_LABEL(label), 0.0f);
+	gtk_list_item_set_child(item, label);
+}
+
+static void
+installed_only_item_bind(GtkSignalListItemFactory *factory, GtkListItem *item, gpointer user_data)
+{
+	GtkStringObject *value = GTK_STRING_OBJECT(gtk_list_item_get_item(item));
+	gtk_label_set_text(GTK_LABEL(gtk_list_item_get_child(item)),
+	                   gtk_string_object_get_string(value));
+}
+
+static void
+show_installed_only(void)
+{
+	GtkStringList *names = gtk_string_list_new(NULL);
+	mportPackageMeta **packages = NULL;
+	if (mport_pkgmeta_list(mport, &packages) != MPORT_OK) {
+		fprintf(stderr, "Unable to list installed packages: %s\n", mport_err_string());
+		if (packages != NULL)
+			mport_pkgmeta_vec_free(packages);
+	} else if (packages != NULL) {
+		for (mportPackageMeta **package = packages; *package != NULL; package++) {
+			gchar *label = g_strdup_printf("%s  %s",
+			    (*package)->name ? (*package)->name : "",
+			    (*package)->version ? (*package)->version : "");
+			gtk_string_list_append(names, label);
+			g_free(label);
+		}
+		mport_pkgmeta_vec_free(packages);
+	}
+
+	GtkListItemFactory *factory = gtk_signal_list_item_factory_new();
+	g_signal_connect(factory, "setup", G_CALLBACK(installed_only_item_setup), NULL);
+	g_signal_connect(factory, "bind", G_CALLBACK(installed_only_item_bind), NULL);
+	GtkSelectionModel *selection = GTK_SELECTION_MODEL(gtk_no_selection_new(G_LIST_MODEL(names)));
+	GtkWidget *list = gtk_list_view_new(selection, factory);
+	GtkWidget *scroll = gtk_scrolled_window_new();
+	gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), list);
+	gtk_widget_set_vexpand(scroll, TRUE);
+
+	GtkWidget *holder = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+	GtkWidget *warning = gtk_label_new(
+	    "Current package index unavailable. Installed packages are shown below. "
+	    "Installation and upgrades are disabled until a current repository index is available.");
+	gtk_label_set_wrap(GTK_LABEL(warning), TRUE);
+	gtk_label_set_xalign(GTK_LABEL(warning), 0.0f);
+	gtk_widget_set_margin_start(warning, 12);
+	gtk_widget_set_margin_end(warning, 12);
+	gtk_widget_set_margin_top(warning, 12);
+	gtk_box_append(GTK_BOX(holder), warning);
+	gtk_box_append(GTK_BOX(holder), scroll);
+	gtk_window_set_child(GTK_WINDOW(window), holder);
+	gtk_window_present(GTK_WINDOW(window));
+}
 static void on_export_response(GtkNativeDialog *dialog, int response_id, gpointer user_data);
 
 static GtkWidget *
@@ -252,11 +312,10 @@ activate(GtkApplication *app, gpointer user_data)
 	mport_set_progress_free_cb(mport, &mport_gtk_progress_free_cb);
 
 	if (mport_index_load(mport) != MPORT_OK) {
-		mport_instance_free(mport);
-		// In GTK4 we should ideally use GtkAlertDialog, but for now we'll try to use a simplified msgbox
-		// or just exit if we can't even show a window yet.
-		fprintf(stderr, "Unable to load updates index: %s\n", mport_err_string());
-		exit(1);
+		fprintf(stderr, "Unable to load package index; showing installed packages only: %s\n",
+		        mport_err_string());
+		show_installed_only();
+		return;
 	}
 
 	// create search button
