@@ -61,6 +61,14 @@ GtkTextBuffer *logBuffer = NULL;
 static GPtrArray *actionWidgets = NULL;
 static gboolean operationInProgress = FALSE;
 
+/*
+ * libmport has no way to cancel a running operation, so a quit requested
+ * mid-operation is deferred: the current libmport call finishes, our own
+ * loops stop at their next safe point, and the window closes once the
+ * operation ends.
+ */
+static gboolean quitRequested = FALSE;
+
 mportInstance *mport;
 
 struct available_detail {
@@ -240,6 +248,8 @@ static void reset_progress_bar(void);
 static void register_action_widget(GtkWidget *widget);
 static gboolean begin_operation(void);
 static void end_operation(void);
+static gboolean quit_after_operation(gpointer user_data);
+static gboolean on_window_close_request(GtkWindow *w, gpointer user_data);
 static void lock_button_clicked(GtkButton *button, GtkWidget *parent);
 static void unlock_button_clicked(GtkButton *button, GtkWidget *parent);
 static mportPackageMeta** lookup_for_lock(mportInstance *mport, const char *packageName);
@@ -291,6 +301,7 @@ activate(GtkApplication *app, gpointer user_data)
 	window = gtk_application_window_new(app);
 	gtk_window_set_title(GTK_WINDOW(window), NAME);
 	gtk_widget_set_size_request(window, 800, 600);
+	g_signal_connect(window, "close-request", G_CALLBACK(on_window_close_request), NULL);
 
 	progressBar = gtk_progress_bar_new();
 	gtk_progress_bar_set_show_text(GTK_PROGRESS_BAR(progressBar), TRUE);
@@ -633,7 +644,7 @@ static gboolean
 begin_operation(void)
 {
 
-	if (operationInProgress)
+	if (operationInProgress || quitRequested)
 		return FALSE;
 
 	operationInProgress = TRUE;
@@ -648,6 +659,41 @@ end_operation(void)
 
 	operationInProgress = FALSE;
 	set_actions_sensitive(TRUE);
+
+	/* defer to an idle so the handler that ended the operation unwinds
+	   before the window (and the widgets it may still touch) goes away. */
+	static gboolean quitScheduled = FALSE;
+	if (quitRequested && !quitScheduled) {
+		quitScheduled = TRUE;
+		g_idle_add(quit_after_operation, NULL);
+	}
+}
+
+static gboolean
+quit_after_operation(gpointer user_data)
+{
+
+	gtk_window_destroy(GTK_WINDOW(window));
+	return G_SOURCE_REMOVE;
+}
+
+/*
+ * Handles both the Quit button (via gtk_window_close) and the window
+ * manager's close button.
+ */
+static gboolean
+on_window_close_request(GtkWindow *w, gpointer user_data)
+{
+
+	if (!operationInProgress)
+		return FALSE;
+
+	if (!quitRequested) {
+		quitRequested = TRUE;
+		append_log_message("Quit requested; exiting after the current operation finishes.");
+	}
+
+	return TRUE;
 }
 
 static void
@@ -1051,7 +1097,7 @@ create_header_bar(GtkWidget *window, GtkWidget *search)
 	gtk_header_bar_pack_start(GTK_HEADER_BAR(header_bar), icon);
 
 	GtkWidget *quit_btn = gtk_button_new_with_label("Quit");
-	g_signal_connect_swapped(quit_btn, "clicked", G_CALLBACK(gtk_window_destroy), G_OBJECT(window));
+	g_signal_connect_swapped(quit_btn, "clicked", G_CALLBACK(gtk_window_close), G_OBJECT(window));
 	gtk_header_bar_pack_start(GTK_HEADER_BAR(header_bar), quit_btn);
 
 	GtkWidget *edit_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
@@ -1363,7 +1409,14 @@ install(mportInstance *mport, const char *packageName)
 	resultCode = install_depends(mport, (*indexEntry)->pkgname, (*indexEntry)->version, MPORT_EXPLICIT);
 	g_print("install_depends returned with code: %d\n", resultCode);
 
-	if (resultCode != MPORT_OK)
+	if (resultCode != MPORT_OK && quitRequested)
+	{
+		g_autofree gchar *message = g_strdup_printf(
+			"Installation of %s stopped for quit; dependencies already installed are kept.",
+			packageName);
+		append_log_message(message);
+	}
+	else if (resultCode != MPORT_OK)
 	{
 		g_warning("Failed to install package %s: %s", packageName, mport_err_string());
      
@@ -1446,6 +1499,12 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
                    zero-length vector; NULL only if libmport's calloc failed. */
                 mportDependsEntry **dependsHead = depends;
                 while (depends != NULL && *depends != NULL) {
+                        /* each install is complete before the next starts, so
+                           stopping here leaves the package database consistent. */
+                        if (quitRequested) {
+                                mport_index_depends_free_vec(dependsHead);
+                                return MPORT_ERR_WARN;
+                        }
                         g_print("Installing dependency: %s version: %s\n", (*depends)->d_pkgname, (*depends)->d_version);
 
 					int resultCode = install_depends_limited(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC, depth + 1);
@@ -1454,6 +1513,10 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
                                 return resultCode;
                         }
                         depends++;
+                }
+                if (quitRequested) {
+                        mport_index_depends_free_vec(dependsHead);
+                        return MPORT_ERR_WARN;
                 }
                 g_print("Installing main package...\n");
                 if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
@@ -2421,6 +2484,12 @@ maintenance_verify_clicked(GtkButton *button, GtkWindow *parent)
 
 	int broken_count = 0;
 	for (mportPackageMeta **pack = packs; *pack != NULL; pack++) {
+		if (quitRequested) {
+			append_log_message("Verification stopped for quit.");
+			mport_pkgmeta_vec_free(packs);
+			end_operation();
+			return;
+		}
 		g_autofree gchar *log = g_strdup_printf("Verifying %s...", (*pack)->name);
 		append_log_message(log);
 		while (g_main_context_pending(NULL)) {
@@ -2471,6 +2540,8 @@ maintenance_mirror_clicked(GtkButton *button, GtkWindow *parent)
 	char country[sizeof(((mportMirrorEntry *)0)->country)] = "us";
 
 	while (mirrorEntry != NULL && *mirrorEntry != NULL) {
+		if (quitRequested)
+			break;
 		if ((*mirrorEntry)->url[0] == '\0') {
 			mirrorEntry++;
 			continue;
@@ -2519,6 +2590,13 @@ maintenance_mirror_clicked(GtkButton *button, GtkWindow *parent)
 
 	if (mirrorEntry_orig != NULL) {
 		mport_index_mirror_entry_free_vec(mirrorEntry_orig);
+	}
+
+	/* results are incomplete; don't save a mirror chosen from them. */
+	if (quitRequested) {
+		append_log_message("Mirror detection stopped for quit; setting not changed.");
+		end_operation();
+		return;
 	}
 
 	g_autofree gchar *log_res = g_strdup_printf("Mirror selection complete. Fastest: %s (%ld ms)", country, fastest);
