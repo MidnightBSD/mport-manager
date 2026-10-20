@@ -232,6 +232,7 @@ static GtkWidget *create_header_bar(GtkWidget *window, GtkWidget *search);
 static void create_detail_box(GtkWidget *parent);
 static void create_stats_box(GtkWidget *parent);
 static void available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
+static void clear_details(void);
 static void installed_tree_available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data);
 static void available_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
 static void installed_cursor_changed_handler(GtkTreeView *treeView, gpointer data);
@@ -787,6 +788,7 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 			return;
 		}
 
+		gboolean found = FALSE;
 		if (indexEntries != NULL) {
 			mportIndexEntry **indexEntriesHead = indexEntries;
 			while (*indexEntries != NULL) {
@@ -798,12 +800,17 @@ available_row_click_handler(GtkTreeView *treeView, GtkTreePath *path, GtkTreeVie
 					gtk_label_set_text(GTK_LABEL(detail.labelLicense), (*indexEntries)->license ? (*indexEntries)->license : "");
 					gtk_label_set_text(GTK_LABEL(detail.labelType), (*indexEntries)->type == MPORT_TYPE_SYSTEM ? "System" : "Application");
 
+					found = TRUE;
 					break;
 				}
 				indexEntries++;
 			}
 			mport_index_entry_free_vec(indexEntriesHead);
 		}
+
+		/* don't leave the previous package's details on screen */
+		if (!found)
+			clear_details();
 
 	#if defined(DEBUG)
 			g_print ("The row containing the name '%s' has been double-clicked.\n", name);
