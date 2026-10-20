@@ -1441,36 +1441,28 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
                         mport_pkgmeta_vec_free(packs);
                         packs = NULL;
                 }
-                if (depends == NULL) {
-                        g_print("No existing package or dependencies, installing directly...\n");
-                        /* Package is not installed and there are no dependencies */
-                        if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
-                                msgbox(GTK_WINDOW(window), mport_err_string());
-                                return mport_err_code();
-                        }
-                } else {
-                        g_print("Installing dependencies...\n");
-                        /* Package is not installed */
-                        mportDependsEntry **dependsHead = depends;
-                        while (*depends != NULL) {
-                                g_print("Installing dependency: %s version: %s\n", (*depends)->d_pkgname, (*depends)->d_version);
+                g_print("Installing dependencies...\n");
+                /* Package is not installed. An empty dependency list is a
+                   zero-length vector; NULL only if libmport's calloc failed. */
+                mportDependsEntry **dependsHead = depends;
+                while (depends != NULL && *depends != NULL) {
+                        g_print("Installing dependency: %s version: %s\n", (*depends)->d_pkgname, (*depends)->d_version);
 
 					int resultCode = install_depends_limited(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC, depth + 1);
-                                if (resultCode != MPORT_OK) {
-                                        mport_index_depends_free_vec(dependsHead);
-                                        return resultCode;
-                                }
-                                depends++;
-                        }
-                        g_print("Installing main package...\n");
-                        if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
-                                g_warning("Main package installation failed: %s", mport_err_string());
+                        if (resultCode != MPORT_OK) {
                                 mport_index_depends_free_vec(dependsHead);
-                                msgbox(GTK_WINDOW(window), mport_err_string());
-                                return mport_err_code();
+                                return resultCode;
                         }
-                        mport_index_depends_free_vec(dependsHead);
+                        depends++;
                 }
+                g_print("Installing main package...\n");
+                if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
+                        g_warning("Main package installation failed: %s", mport_err_string());
+                        mport_index_depends_free_vec(dependsHead);
+                        msgbox(GTK_WINDOW(window), mport_err_string());
+                        return mport_err_code();
+                }
+                mport_index_depends_free_vec(dependsHead);
         } else {
                 /* already installed */
                 g_print("Package already installed\n");
@@ -1589,6 +1581,12 @@ append_log_message(const char *msg)
 }
 
 
+static void
+on_msgbox_response(GtkDialog *dialog, gint response_id, gpointer user_data)
+{
+	gtk_window_destroy(GTK_WINDOW(dialog));
+}
+
 /**
  * Create a non-modal dialog with one OK button.
  */
@@ -1617,7 +1615,7 @@ msgbox(GtkWindow *parent, const char *msg)
 	gtk_box_append(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), hbox);
 
 	g_signal_connect(G_OBJECT(dialog), "response",
-	                 G_CALLBACK(gtk_window_destroy), NULL);
+	                 G_CALLBACK(on_msgbox_response), NULL);
 	gtk_window_present(GTK_WINDOW(dialog));
 }
 
@@ -1667,10 +1665,15 @@ run_dialog_sync(GtkDialog *dialog)
     gint response = GTK_RESPONSE_NONE;
 
     g_object_set_data(G_OBJECT(dialog), "loop", loop);
-    g_signal_connect(dialog, "response", G_CALLBACK(on_dialog_response), &response);
+    gulong handler = g_signal_connect(dialog, "response", G_CALLBACK(on_dialog_response), &response);
 
     gtk_window_present(GTK_WINDOW(dialog));
     g_main_loop_run(loop);
+
+    /* the handler's user_data points at this stack frame and "loop" is
+       about to be freed; detach both before returning. */
+    g_signal_handler_disconnect(dialog, handler);
+    g_object_set_data(G_OBJECT(dialog), "loop", NULL);
     g_main_loop_unref(loop);
 
     return response;
@@ -1958,9 +1961,11 @@ search_remote_index(GtkTreeStore *store, const char *query)
 	}
 
 	if (mport_index_search_term(mport, &packs, (char *)query) != MPORT_OK) {
-		warnx("%s", mport_err_string());
-		mport_instance_free(mport);
-		exit(1);
+		msgbox(GTK_WINDOW(window), mport_err_string());
+		/* the search allocates the vector before it can fail, so a
+		   partially populated vector may still be attached. */
+		mport_index_entry_free_vec(packs);
+		return;
 	}
 	if (packs == NULL)
 		return;
@@ -1999,8 +2004,10 @@ populate_remote_index(GtkTreeStore *store)
 
 	if (mport_index_list(mport, &indexEntries) != MPORT_OK) {
 		msgbox(GTK_WINDOW(window), mport_err_string());
-		mport_instance_free(mport);
-		exit(1);
+		/* the listing allocates the vector before it can fail, so a
+		   partially populated vector may still be attached. */
+		mport_index_entry_free_vec(indexEntries);
+		return;
 	}
 	if (indexEntries == NULL)
 		return;
@@ -2009,8 +2016,7 @@ populate_remote_index(GtkTreeStore *store)
 	if (mport_pkgmeta_list(mport, &packs) != MPORT_OK) {
 		msgbox(GTK_WINDOW(window), mport_err_string());
 		mport_index_entry_free_vec(indexEntriesHead);
-		mport_instance_free(mport);
-		exit(1);
+		return;
 	}
 	packsHead = packs;
 
