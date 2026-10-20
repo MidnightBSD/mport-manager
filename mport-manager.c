@@ -258,8 +258,8 @@ static gint run_dialog_sync(GtkDialog *dialog);
 // mport stuff
 static int delete(const char *);
 static int install(mportInstance *, const char *);
-static int install_depends(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic);
-static int install_depends_limited(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic, unsigned int depth);
+static int install_depends(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic, gchar **error);
+static int install_depends_limited(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic, unsigned int depth, gchar **error);
 static mportIndexEntry ** lookupIndex(mportInstance *, const char *);
 static int lock(mportInstance *mport, const char *packageName);
 static int unlock(mportInstance *mport, const char *packageName);
@@ -1406,7 +1406,8 @@ install(mportInstance *mport, const char *packageName)
 	g_print("Starting installation of package: %s version: %s\n", (*indexEntry)->pkgname, (*indexEntry)->version);
  
 	g_print("Calling install_depends...\n");
-	resultCode = install_depends(mport, (*indexEntry)->pkgname, (*indexEntry)->version, MPORT_EXPLICIT);
+	g_autofree gchar *installError = NULL;
+	resultCode = install_depends(mport, (*indexEntry)->pkgname, (*indexEntry)->version, MPORT_EXPLICIT, &installError);
 	g_print("install_depends returned with code: %d\n", resultCode);
 
 	if (resultCode != MPORT_OK && quitRequested)
@@ -1418,11 +1419,12 @@ install(mportInstance *mport, const char *packageName)
 	}
 	else if (resultCode != MPORT_OK)
 	{
-		g_warning("Failed to install package %s: %s", packageName, mport_err_string());
-     
+		const char *reason = installError != NULL ? installError : mport_err_string();
+		g_warning("Failed to install package %s: %s", packageName, reason);
+
 		g_autofree gchar *message = g_strdup_printf(
 			"Failed to install package %s: %s",
-			packageName, mport_err_string());
+			packageName, reason);
 		msgbox_modal(GTK_WINDOW(window), "Error", "_Close", message);
 	}
 	else
@@ -1443,13 +1445,26 @@ install(mportInstance *mport, const char *packageName)
 }
 
 static int
-install_depends(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic) 
+install_depends(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic, gchar **error)
 {
-        return install_depends_limited(mport, packageName, version, automatic, 0);
+        return install_depends_limited(mport, packageName, version, automatic, 0, error);
+}
+
+/*
+ * Record the first failure of a dependency install so install() can report
+ * it once, instead of every failing level popping its own dialog.
+ */
+static void
+set_install_error(gchar **error, const char *msg)
+{
+
+	append_log_message(msg);
+	if (error != NULL && *error == NULL)
+		*error = g_strdup(msg != NULL ? msg : "unknown error");
 }
 
 static int
-install_depends_limited(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic, unsigned int depth)
+install_depends_limited(mportInstance *mport, const char *packageName, const char *version, mportAutomatic automatic, unsigned int depth, gchar **error)
 {
 	mportPackageMeta **packs = NULL;
 	mportDependsEntry **depends = NULL;
@@ -1462,12 +1477,12 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
                         "Dependency depth limit exceeded while installing %s-%s. "
                         "The dependency graph may contain a cycle.",
                         packageName, version);
-                msgbox(GTK_WINDOW(window), message);
+                set_install_error(error, message);
                 return (MPORT_ERR_FATAL);
         }
 
         if (mport_index_depends_list(mport, packageName, version, &depends) != MPORT_OK) {
-                msgbox(GTK_WINDOW(window), mport_err_string());
+                set_install_error(error, mport_err_string());
                 /* the listing allocates the vector before it can fail, so a
                    partially populated vector may still be attached. */
                 mport_index_depends_free_vec(depends);
@@ -1475,7 +1490,7 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
         }
 
         if (mport_pkgmeta_search_master(mport, &packs, "pkg=%Q", packageName) != MPORT_OK) {
-                msgbox(GTK_WINDOW(window), mport_err_string());
+                set_install_error(error, mport_err_string());
                 if (packs != NULL)
                         mport_pkgmeta_vec_free(packs);
                 mport_index_depends_free_vec(depends);
@@ -1507,7 +1522,7 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
                         }
                         g_print("Installing dependency: %s version: %s\n", (*depends)->d_pkgname, (*depends)->d_version);
 
-					int resultCode = install_depends_limited(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC, depth + 1);
+					int resultCode = install_depends_limited(mport, (*depends)->d_pkgname, (*depends)->d_version, MPORT_AUTOMATIC, depth + 1, error);
                         if (resultCode != MPORT_OK) {
                                 mport_index_depends_free_vec(dependsHead);
                                 return resultCode;
@@ -1522,7 +1537,7 @@ install_depends_limited(mportInstance *mport, const char *packageName, const cha
                 if (mport_install(mport, packageName, version, NULL, automatic) != MPORT_OK) {
                         g_warning("Main package installation failed: %s", mport_err_string());
                         mport_index_depends_free_vec(dependsHead);
-                        msgbox(GTK_WINDOW(window), mport_err_string());
+                        set_install_error(error, mport_err_string());
                         return mport_err_code();
                 }
                 mport_index_depends_free_vec(dependsHead);
@@ -1593,6 +1608,8 @@ create_log_view(void)
 
 	logBuffer = gtk_text_buffer_new(NULL);
 	logView = gtk_text_view_new_with_buffer(logBuffer);
+	/* the view holds its own reference; logBuffer is borrowed from here on. */
+	g_object_unref(logBuffer);
 	gtk_text_view_set_editable(GTK_TEXT_VIEW(logView), FALSE);
 	gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(logView), FALSE);
 	gtk_text_view_set_monospace(GTK_TEXT_VIEW(logView), TRUE);
